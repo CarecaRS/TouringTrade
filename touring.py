@@ -15,10 +15,12 @@ from keys import api_secret, api_key  # Importa a api do arquivo local keys.py
 
 ###
 # TO-DO
-# - Transformar para função também a obtenção dos valores históricos
-#   do ativo
 # - Fazer um loop para que o sistema busque as informações históricas de
 #   toda a lista do touring_index
+# - Criar marcadores para saber qual o valor de referência de cada compra.
+#   Pensei em uma coluna nova ('marcador' ou algo assim), registro-base é
+#   zero, na primeira compra já é passado para 1. Na venda, acontece a
+#   reversão do sinal e o marcador aumenta em uma unidade.
 
 ###
 # JÁ FEITO
@@ -192,8 +194,8 @@ infos['uid']
 #                mais longa, sinal de compra. O reverso é sinal de venda.
 # volatilidade: maior volatilidade indica maior mudança de preços, menor
 #               volatilidade indica maior estabilidade na tendência
-
-historico = valores_historicos(dias=(365))
+intervalo = '15m'
+historico = valores_historicos(dias=(365), intervalo=intervalo)
 adiciona_indicadores(historico, (24*4))
 historico = historico.dropna()
 
@@ -223,7 +225,7 @@ historico.loc[mask_compra, 'sinal_est'] = 1  # Registro backtest compra
 historico.loc[mask_venda, 'sinal_est'] = -1  # Registro backtest venda
 saldo_inicial = 1000  # Define um saldo inicial hipotético, em R$
 #
-max_ordens = 20
+max_ordens = 50
 carteira_full = max_ordens  # Máximo de ordens abertas ao mesmo tempo
 historico['cv'] = 0  # Cria estados neutros, sem ordem de compra ou venda
 historico['saldo_inicial'] = 0.0
@@ -236,10 +238,6 @@ periodo.loc[inicio, 'saldo_inicial'] = saldo_inicial
 fatia = periodo.loc[periodo.index[0], 'saldo_inicial']/carteira_full
 #
 for idx in periodo.index:
-#    if carteira_full == 5:
-#        fatia = periodo.loc[idx, 'saldo_inicial']/carteira_full
-#    else:
-#        pass
     status = 0
 # Recupera o saldo final anterior, igual ao inicial se for a primeira observação
     if idx == periodo.index[0]:
@@ -298,26 +296,356 @@ for idx in periodo.index:
     else:
         pass
 saldo_final = round(periodo['saldo_final'][-1], 2) + round(periodo['saldo_cart'][-1], 2)
+saldo_maximo = round((periodo[periodo['saldo_cart'] == periodo['saldo_cart'].max()]['saldo_final'] + periodo['saldo_cart'].max())[0], 2)
+rend_est = round(((saldo_final-saldo_inicial)/saldo_inicial)*100,2)
+rend_at = round(((periodo.close[-1]/periodo.open[0])-1)*100, 2)
 print(f'\nSaldo final: R${saldo_final}')
-print(f'Rendimento total do período: {round(((saldo_final-saldo_inicial)/saldo_inicial)*100,2)}%')
-print('\n   Características da estratégia:')
+print(f'Rendimento total da estratégia: {rend_est}%')
+print(f'Rendimento total do ativo: {rend_at}%')
+if rend_at > rend_est:
+    print("Mas que estratégia mais bosta")
+else:
+    print("Meus parabéns, superou o ativo!")
+print('\n\n   Características da estratégia:')
 print(f'Número de ordens simultâneas: {max_ordens}')
+print(f'Número de trades de compra realizados: {periodo[periodo['cv'] == 1]['cv'].sum()}')
+print(f'Número de trades de venda realizados: {abs(periodo[periodo['cv'] == -1]['cv'].sum())}')
+print(f'Intervalo das observações: ' + intervalo)
+print(f'Saldo máximo no período: R${saldo_maximo}')
+print(f'Valor máximo do ativo no período: R${periodo.close.max()}')
+print(f'Valor mínimo do ativo no período: R${periodo.close.min()}')
+
 
 #
 #
+#
+#
+#
+#
 
-round(periodo['saldo_final'][-1], 2)
 
-periodo[['sinal_est', 'cv', 'saldo_inicial', 'saldo_final', 'saldo_cart']].tail(20)
-fatia
-status
-carteira_full
+# ESTRATÉGIA 2: mesclando média média e média curta
+# - Preço > média média = sinal de compra
+# - Preço < média curta = sinal de venda
+historico['sinal_est1'] = 0  # Cria sinais neutros
+mask_compra = historico['close'] > historico['mm192']  # Filtro backtest compra
+mask_venda = historico['close'] < historico['mm24']  # Filtro backtest venda
+historico.loc[mask_compra, 'sinal_est'] = 1  # Registro backtest compra
+historico.loc[mask_venda, 'sinal_est'] = -1  # Registro backtest venda
+saldo_inicial = 1000  # Define um saldo inicial hipotético, em R$
+#
+max_ordens = 5
+carteira_full = max_ordens  # Máximo de ordens abertas ao mesmo tempo
+historico['cv'] = 0  # Cria estados neutros, sem ordem de compra ou venda
+historico['saldo_inicial'] = 0.0
+historico['saldo_final'] = 0.0
+historico['saldo_cart'] = 0.0
+periodo = historico.head(500).copy()  # gráfico das últimas 4 semanas (672 períodos de 15m em uma semana)
+inicio = periodo.index[0]
+periodo.loc[inicio, 'saldo_inicial'] = saldo_inicial
+#
+fatia = periodo.loc[periodo.index[0], 'saldo_inicial']/carteira_full
+#
+for idx in periodo.index:
+    status = 0
+# Recupera o saldo final anterior, igual ao inicial se for a primeira observação
+    if idx == periodo.index[0]:
+        periodo.loc[idx, 'saldo_inicial'] = saldo_inicial
+    else:
+        periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_final']
+# Se a carteira estiver vazia, não tem recurso para comprar, nem verifica os sinais de compra
+# E se a carteira estiver cheia novamente, refaz o valor das fatias
+    if carteira_full == 0:
+        print('Sem recursos para comprar nada :(')
+        pass
+    elif carteira_full == max_ordens:
+        fatia = periodo.loc[idx, 'saldo_inicial']/carteira_full
+    else:
+        pass
+# PROCESSAMENTO DE COMPRAS
+    if periodo.loc[idx, 'sinal_est'] == 1:  # SINAL DE COMPRA
+        if carteira_full == 0:  # SE CARTEIRA VAZIA, NÃO TEM COMO COMPRAR
+            pass
+        else:
+            periodo.loc[idx, 'cv'] = 1
+            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial'] - fatia
+            if idx == periodo.index[0]:
+                periodo.loc[idx, 'saldo_cart'] = fatia
+            else:
+                periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart'] + fatia
+            carteira_full -= 1
+            status = 1
+            print('Compra realizada!')
+# PROCESSAMENTO DE VENDAS
+    elif periodo.loc[idx, 'sinal_est'] == -1:  # SINAL DE VENDA
+        if carteira_full == max_ordens:  # SE CARTEIRA CHEIA, NÃO TEM O QUE VENDER
+            pass
+        else:
+            periodo.loc[idx, 'cv'] = -1
+            if idx == periodo.index[-1]:
+                pass
+            else:
+                variacao = (periodo.loc[(idx + pd.to_timedelta(15, unit='m')), 'close'] - periodo.loc[idx, 'close'])/periodo.loc[idx, 'close']
+                venda = fatia + (fatia * variacao)
+                periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
+                print('Venda realizada!')
+                periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart'] - fatia
+                carteira_full += 1
+                status = -1
+    else:
+        pass
+# PROCESSAMENTO DE MOMENTOS SEM NEGOCIAÇÃO
+    if status == 0:
+        if idx == periodo.index[0]:
+            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
+        else:
+            periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart']
+            periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_final']
+            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
+    else:
+        pass
+saldo_final = round(periodo['saldo_final'][-1], 2) + round(periodo['saldo_cart'][-1], 2)
+saldo_maximo = round((periodo[periodo['saldo_cart'] == periodo['saldo_cart'].max()]['saldo_final'] + periodo['saldo_cart'].max())[0], 2)
+rend_est = round(((saldo_final-saldo_inicial)/saldo_inicial)*100,2)
+rend_at = round(((periodo.close[-1]/periodo.open[0])-1)*100, 2)
+print(f'\nSaldo final: R${saldo_final}')
+print(f'Rendimento total da estratégia: {rend_est}%')
+print(f'Rendimento total do ativo: {rend_at}%')
+if rend_at > rend_est:
+    print("Mas que estratégia mais bosta")
+else:
+    print("Meus parabéns, superou o ativo!")
+print('\n\n   Características da estratégia:')
+print(f'Número de ordens simultâneas: {max_ordens}')
+print(f'Número de trades de compra realizados: {periodo[periodo['cv'] == 1]['cv'].sum()}')
+print(f'Número de trades de venda realizados: {abs(periodo[periodo['cv'] == -1]['cv'].sum())}')
+print(f'Intervalo das observações: ' + intervalo)
+print(f'Saldo máximo no período: R${saldo_maximo}')
+print(f'Valor máximo do ativo no período: R${periodo.close.max()}')
+print(f'Valor mínimo do ativo no período: R${periodo.close.min()}')
 
-periodo['saldo_cart'].max()
 #
 #
 #
 #
 #
 #
+
+
+# ESTRATÉGIA 2.1: mesclando média média e média curta.
+#                 Zerando a carteira quando vende.
+# - Preço > média média = sinal de compra
+# - Preço < média curta = sinal de venda
+historico['sinal_est1'] = 0  # Cria sinais neutros
+mask_compra = historico['close'] > historico['mm192']  # Filtro backtest compra
+mask_venda = historico['close'] < historico['mm24']  # Filtro backtest venda
+historico.loc[mask_compra, 'sinal_est'] = 1  # Registro backtest compra
+historico.loc[mask_venda, 'sinal_est'] = -1  # Registro backtest venda
+saldo_inicial = 1000  # Define um saldo inicial hipotético, em R$
+#
+max_ordens = 5
+carteira_full = max_ordens  # Máximo de ordens abertas ao mesmo tempo
+historico['cv'] = 0  # Cria estados neutros, sem ordem de compra ou venda
+historico['saldo_inicial'] = 0.0
+historico['saldo_final'] = 0.0
+historico['saldo_cart'] = 0.0
+periodo = historico.copy()  # gráfico das últimas 4 semanas (672 períodos de 15m em uma semana)
+inicio = periodo.index[0]
+periodo.loc[inicio, 'saldo_inicial'] = saldo_inicial
+#
+fatia = periodo.loc[periodo.index[0], 'saldo_inicial']/carteira_full
+#
+for idx in periodo.index:
+    status = 0
+# Recupera o saldo final anterior, igual ao inicial se for a primeira observação
+    if idx == periodo.index[0]:
+        periodo.loc[idx, 'saldo_inicial'] = saldo_inicial
+    else:
+        periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_final']
+# Se a carteira estiver vazia, não tem recurso para comprar, nem verifica os sinais de compra
+# E se a carteira estiver cheia novamente, refaz o valor das fatias
+    if carteira_full == 0:
+        print('Sem recursos para comprar nada :(')
+        pass
+    elif carteira_full == max_ordens:
+        fatia = periodo.loc[idx, 'saldo_inicial']/carteira_full
+    else:
+        pass
+# PROCESSAMENTO DE COMPRAS
+    if periodo.loc[idx, 'sinal_est'] == 1:  # SINAL DE COMPRA
+        if carteira_full == 0:  # SE CARTEIRA VAZIA, NÃO TEM COMO COMPRAR
+            pass
+        else:
+            periodo.loc[idx, 'cv'] = 1
+            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial'] - fatia
+            if idx == periodo.index[0]:
+                periodo.loc[idx, 'saldo_cart'] = fatia
+            else:
+                periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart'] + fatia
+            carteira_full -= 1
+            status = 1
+            print('Compra realizada!')
+# PROCESSAMENTO DE VENDAS
+    elif periodo.loc[idx, 'sinal_est'] == -1:  # SINAL DE VENDA
+        if carteira_full == max_ordens:  # SE CARTEIRA CHEIA, NÃO TEM O QUE VENDER
+            pass
+        else:
+            periodo.loc[idx, 'cv'] = -1
+            if idx == periodo.index[-1]:
+                pass
+            else:
+                fatia = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart']
+                variacao = (periodo.loc[(idx + pd.to_timedelta(15, unit='m')), 'close'] - periodo.loc[idx, 'close'])/periodo.loc[idx, 'close']
+                venda = fatia + (fatia * variacao)
+                periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
+                print('Venda realizada!')
+                periodo.loc[idx, 'saldo_cart'] = 0
+                carteira_full = max_ordens
+                status = -1
+    else:
+        pass
+# PROCESSAMENTO DE MOMENTOS SEM NEGOCIAÇÃO
+    if status == 0:
+        if idx == periodo.index[0]:
+            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
+        else:
+            periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart']
+            periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_final']
+            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
+    else:
+        pass
+saldo_final = round(periodo['saldo_final'][-1], 2) + round(periodo['saldo_cart'][-1], 2)
+saldo_maximo = round((periodo[periodo['saldo_cart'] == periodo['saldo_cart'].max()]['saldo_final'] + periodo['saldo_cart'].max())[0], 2)
+rend_est = round(((saldo_final-saldo_inicial)/saldo_inicial)*100,2)
+rend_at = round(((periodo.close[-1]/periodo.open[0])-1)*100, 2)
+print(f'\nSaldo final: R${saldo_final}')
+print(f'Rendimento total da estratégia: {rend_est}%')
+print(f'Rendimento total do ativo: {rend_at}%')
+if rend_at > rend_est:
+    print("Mas que estratégia mais bosta")
+else:
+    print("Meus parabéns, superou o ativo!")
+print('\n\n   Características da estratégia:')
+print(f'Número de ordens simultâneas: {max_ordens}')
+print(f'Número de trades de compra realizados: {periodo[periodo['cv'] == 1]['cv'].sum()}')
+print(f'Número de trades de venda realizados: {abs(periodo[periodo['cv'] == -1]['cv'].sum())}')
+print(f'Intervalo das observações: ' + intervalo)
+print(f'Saldo máximo no período: R${saldo_maximo}')
+print(f'Valor máximo do ativo no período: R${periodo.close.max()}')
+print(f'Valor mínimo do ativo no período: R${periodo.close.min()}')
+
+
+#
+#
+#
+#
+#
+#
+
+
+# ESTRATÉGIA 3: mesclando média curta, longa e preço.
+# - Média curta > média longa = sinal de compra
+# - Preço < média longa = sinal de venda
+historico['sinal_est1'] = 0  # Cria sinais neutros
+mask_compra = historico['mm24'] > historico['mm672']  # Filtro backtest compra
+mask_venda = historico['close'] < historico['mm672']  # Filtro backtest venda
+historico.loc[mask_compra, 'sinal_est'] = 1  # Registro backtest compra
+historico.loc[mask_venda, 'sinal_est'] = -1  # Registro backtest venda
+saldo_inicial = 1000  # Define um saldo inicial hipotético, em R$
+#
+max_ordens = 30
+carteira_full = max_ordens  # Máximo de ordens abertas ao mesmo tempo
+historico['cv'] = 0  # Cria estados neutros, sem ordem de compra ou venda
+historico['saldo_inicial'] = 0.0
+historico['saldo_final'] = 0.0
+historico['saldo_cart'] = 0.0
+periodo = historico.copy()  # gráfico das últimas 4 semanas (672 períodos de 15m em uma semana)
+inicio = periodo.index[0]
+periodo.loc[inicio, 'saldo_inicial'] = saldo_inicial
+#
+fatia = periodo.loc[periodo.index[0], 'saldo_inicial']/carteira_full
+#
+for idx in periodo.index:
+    status = 0
+# Recupera o saldo final anterior, igual ao inicial se for a primeira observação
+    if idx == periodo.index[0]:
+        periodo.loc[idx, 'saldo_inicial'] = saldo_inicial
+    else:
+        periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_final']
+# Se a carteira estiver vazia, não tem recurso para comprar, nem verifica os sinais de compra
+# E se a carteira estiver cheia novamente, refaz o valor das fatias
+    if carteira_full == 0:
+        print('Sem recursos para comprar nada :(')
+        pass
+    elif carteira_full == max_ordens:
+        fatia = periodo.loc[idx, 'saldo_inicial']/carteira_full
+    else:
+        pass
+# PROCESSAMENTO DE COMPRAS
+    if periodo.loc[idx, 'sinal_est'] == 1:  # SINAL DE COMPRA
+        if carteira_full == 0:  # SE CARTEIRA VAZIA, NÃO TEM COMO COMPRAR
+            pass
+        else:
+            periodo.loc[idx, 'cv'] = 1
+            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial'] - fatia
+            if idx == periodo.index[0]:
+                periodo.loc[idx, 'saldo_cart'] = fatia
+            else:
+                periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart'] + fatia
+            carteira_full -= 1
+            status = 1
+            print('Compra realizada!')
+# PROCESSAMENTO DE VENDAS
+    elif periodo.loc[idx, 'sinal_est'] == -1:  # SINAL DE VENDA
+        if carteira_full == max_ordens:  # SE CARTEIRA CHEIA, NÃO TEM O QUE VENDER
+            pass
+        else:
+            periodo.loc[idx, 'cv'] = -1
+            if idx == periodo.index[-1]:
+                pass
+            else:
+                fatia = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart']
+                variacao = (periodo.loc[(idx + pd.to_timedelta(15, unit='m')), 'close'] - periodo.loc[idx, 'close'])/periodo.loc[idx, 'close']
+                venda = fatia + (fatia * variacao)
+                periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
+                print('Venda realizada!')
+#                periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart'] - fatia
+                periodo.loc[idx, 'saldo_cart'] = 0  # PARA ZERAR posição, comenta a linha acima e tira o comentário dessa
+                carteira_full = max_ordens
+                status = -1
+    else:
+        pass
+# PROCESSAMENTO DE MOMENTOS SEM NEGOCIAÇÃO
+    if status == 0:
+        if idx == periodo.index[0]:
+            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
+        else:
+            periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart']
+            periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_final']
+            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
+    else:
+        pass
+saldo_final = round(periodo['saldo_final'][-1], 2) + round(periodo['saldo_cart'][-1], 2)
+saldo_maximo = round((periodo[periodo['saldo_cart'] == periodo['saldo_cart'].max()]['saldo_final'] + periodo['saldo_cart'].max())[0], 2)
+rend_est = round(((saldo_final-saldo_inicial)/saldo_inicial)*100,2)
+rend_at = round(((periodo.close[-1]/periodo.open[0])-1)*100, 2)
+print(f'\nSaldo final: R${saldo_final}')
+print(f'Rendimento total da estratégia: {rend_est}%')
+print(f'Rendimento total do ativo: {rend_at}%')
+if rend_at > rend_est:
+    print("Mas que estratégia mais bosta")
+else:
+    print("Meus parabéns, superou o ativo!")
+print('\n\n   Características da estratégia:')
+print(f'Número de ordens simultâneas: {max_ordens}')
+print(f'Número de trades de compra realizados: {periodo[periodo['cv'] == 1]['cv'].sum()}')
+print(f'Número de trades de venda realizados: {abs(periodo[periodo['cv'] == -1]['cv'].sum())}')
+print(f'Intervalo das observações: ' + intervalo)
+print(f'Saldo máximo no período: R${saldo_maximo}')
+print(f'Valor máximo do ativo no período: R${periodo.close.max()}')
+print(f'Valor mínimo do ativo no período: R${periodo.close.min()}')
 # Final do arquivo, só serve para testar coisas e não tem nada de importante
+
+periodo[['sinal_est', 'cv', 'saldo_inicial', 'saldo_final', 'saldo_cart']].tail(60)
+
+periodo.close[-1]/periodo.open[0]
