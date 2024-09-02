@@ -186,10 +186,6 @@ infos['accountType']
 infos['uid']
 
 
-###
-# BACKTESTING
-###
-
 # Definições dos indicadores:
 # supertrend: sinal de compra (1) ou de venda (-1)
 # médias móveis: se uma média móvel mais curta estiver abaixo de uma média móvel
@@ -197,40 +193,100 @@ infos['uid']
 # volatilidade: maior volatilidade indica maior mudança de preços, menor
 #               volatilidade indica maior estabilidade na tendência
 
-# IDEIA1: usando cinco indicadores
-# - Quando pelo menos 4 indicadores derem sinal de compra, comprar (fatias de 20%).
-# - Quando pelo menos 3 indicadores (2 para um viés mais conservador) derem sinal de venda, sair da posição.
-# - Necessário: saldo inicial (já calcula as fatias de compra), quantidade inicial do ativo, quantidade atual do ativo
-
 historico = valores_historicos(dias=(365*4))
 adiciona_indicadores(historico, (24*4))
-
 historico = historico.dropna()
 
-historico.tail(10)
-
-plt.plot(historico.index, df['open'])
-plt.plot(historico.index, df['close'])
-plt.title('DJIA Open and Close Prices')
-plt.xlabel('Date')
-plt.ylabel('Price')
-
-
-# Create a basic line plot for the Close prices
-fig, ax1 = plt.subplots()
-ax1.plot(historico['close'], color='blue', label='Preço de fechamento')
-ax1.set_xlabel('Tempo')
-ax1.set_ylabel('Preço de fechamento do ativo', color='blue')
-ax1.tick_params(axis='y', labelcolor='blue')
-# Create a twin axis for the High_minus_Low variable
-ax2 = ax1.twinx()
-ax2.plot(historico['mm672'], color='green', label='Média Móvel Longa (7 dias)')
-ax2.set_ylabel('Média Móvel Longa', color='green')
-ax2.tick_params(axis='y', labelcolor='green')
-# Add a title and show the plot
-plt.title('Gráfico Histórico do valor do ativo\ncom linha média móvel longa')
+periodo = historico[-(672*4):]  # gráfico do último mês
+plt.plot(periodo['mm672'], color='green', label='Média Móvel Longa (1 semana)')
+plt.plot(periodo['mm192'], color='blue', label='Média Móvel Média (2 dias)')
+plt.plot(periodo['mm24'], color='red', label='Média Móvel Curta (6 horas)')
+plt.plot(periodo['close'], color='gray', label='Preço de fechamento do ativo')
+plt.xlabel("Tempo")
+plt.ylabel("Valor do ativo")
+plt.title('Gráfico do histórico do valor do ativo')
+plt.legend()
 plt.show()
 
+
+###
+# BACKTESTING
+###
+
+# ESTRATÉGIA 1: utilizando sinais apenas com a média curta
+# - Preço > média curta = sinal de compra
+# - Preço < média curta = sinal de venda
+historico['sinal_est1'] = 0  # Cria sinais neutros
+mask_compra = historico['close'] > historico['mm24']  # Filtro backtest compra
+mask_venda = historico['close'] < historico['mm24']  # Filtro backtest venda
+historico.loc[mask_compra, 'sinal_est1'] = 1  # Registro backtest compra
+historico.loc[mask_venda, 'sinal_est1'] = -1  # Registro backtest venda
+saldo_inicial = 1000  # Define um saldo inicial hipotético, em R$
+
+
+#
+carteira_full = 5  # Máximo de ordens abertas ao mesmo tempo
+historico['cv'] = 0  # Cria estados neutros, sem ordem de compra ou venda
+historico['saldo_inicial'] = 0.0
+historico['saldo_final'] = 0.0
+historico['saldo_cart'] = 0.0
+periodo = historico[-(30):].copy()  # gráfico das últimas 4 semanas (672 períodos de 15m em uma semana)
+periodo.drop(periodo.tail(25).index, inplace=True)
+inicio = periodo.index[0]
+periodo.loc[inicio, 'saldo_inicial'] = saldo_inicial
+#
+#
+for idx in periodo.index:
+# Recupera o saldo final anterior, igual ao inicial se for a primeira observação
+    if idx == periodo.index[0]:
+        periodo.loc[idx, 'saldo_inicial'] = saldo_inicial
+    else:
+        periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_final']
+# Se a carteira estiver vazia, não tem recurso para comprar, nem verifica os sinais de compra
+    if carteira_full == 0:
+        print('Sem recursos para comprar nada :(')
+        pass
+    else:
+        fatia = periodo.loc[idx, 'saldo_inicial']/carteira_full
+# PROCESSAMENTO DE COMPRAS
+    if periodo.loc[idx, 'sinal_est1'] == 1:  # SINAL DE COMPRA
+        if carteira_full == 0:  # SE CARTEIRA VAZIA, NÃO TEM COMO COMPRAR
+            pass
+        else:
+            periodo.loc[idx, 'cv'] = 1
+            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial'] - fatia
+            if idx == periodo.index[0]:
+                periodo.loc[idx, 'saldo_cart'] = fatia
+            else:
+                periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - pd.to_timedelta(15, unit='m')), 'saldo_cart'] + fatia
+            carteira_full -= 1
+            print('Compra realizada!')
+
+
+
+
+# POCESSAMENTO DE VENDAS
+    elif periodo.loc[idx, 'sinal_est1'] == -1:  # SINAL DE VENDA
+        if carteira_full == 5:  # SE CARTEIRA CHEIA, NÃO TEM O QUE VENDER
+            pass
+        else:
+            periodo.loc[idx, 'cv'] = -1
+            if idx == periodo.index[-1]:
+                pass
+            else:
+                fatia = (periodo.loc[idx, 'saldo']/carteira_full)
+                variacao = (periodo.loc[idx + pd.to_timedelta(15, unit='m'), 'close'] - periodo.loc[idx, 'close'])/periodo.loc[idx, 'close']
+                venda = fatia + (fatia * variacao)
+                periodo.loc[idx, 'saldo'] = venda + periodo.loc[idx, 'saldo']
+                print('Venda realizada!')
+                saldo_carteira -= saldo_carteira/(5 - carteira_full)
+                carteira_full += 1
+    else:
+        pass
+
+periodo[['cv', 'saldo_inicial', 'saldo_final', 'saldo_cart']].head(50)
+
+carteira_full
 #
 #
 #
