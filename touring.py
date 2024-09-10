@@ -3,7 +3,7 @@ import pandas_datareader.data as web
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 import numpy as np
-import binance.enums  # responsável pelo trading
+# import binance.enums  # responsável pelo trading
 import datetime
 import requests
 import json
@@ -22,6 +22,12 @@ from keys import api_secret, api_key  # Importa a api do arquivo local keys.py
 # - Bolar algum jeito de verificar há quanto tempo está caindo, para
 #   evitar comprar em cenários de tendência primária de queda (de repente
 #   os próprios indicadores de volatilidade já suprem isso)
+# - Pega o histórico do desempenho de CDI e o IBOV para fins de comparação
+#   no último gráfico também.
+# - Fazer duas funções (para compra e para venda), também armazenar a
+#   carteira em um objeto separado (tipo portfolio), assim dá para agilizar
+#   o código (eu acho) e o controle das quantidades e preços médios deve
+#   ficar melhor
 
 ###
 # JÁ FEITO
@@ -37,23 +43,27 @@ from keys import api_secret, api_key  # Importa a api do arquivo local keys.py
 #   reversão do sinal e o marcador aumenta em uma unidade.
 
 ###
-# IDEIA1: pelo menos cinco indicadores recebendo os dados/calculando a cada segundo.
-# - Quando pelo menos 4 indicadores derem sinal de compra, comprar (fatias de 20%).
-# - Quando pelo menos 3 indicadores (2 para um viés mais conservador) derem sinal de venda, sair da posição.
-# - Necessário: saldo inicial (já calcula as fatias de compra), quantidade inicial do ativo, quantidade atual do ativo
+# IDEIA1: pelo menos cinco indicadores recebendo os dados/calculando
+# a cada tempo X.
+# - Quando pelo menos 4 indicadores derem sinal de compra,
+#   comprar (fatias de 20% por exemplo).
+# - Quando pelo menos 3 indicadores (2 para um viés mais conservador)
+#   derem sinal de venda, sair da posição.
+# - Necessário: saldo inicial (já calcula as fatias de compra), quantidade
+#   inicial do ativo, quantidade atual do ativo
 
 
 ###
 # OBTENÇÃO DOS TICKERS DO COINMARKETCAP (registro para quando for necessário)
 ###
-#coinmarketcap = pd.read_html('https://coinmarketcap.com/all/views/all/')[2]
-#coinmarketcap = coinmarketcap.iloc[:, : 10].dropna()
-#touring_index = list(coinmarketcap['Symbol'])  # tickers que poderão ser negociados
+# coinmarketcap = pd.read_html('https://coinmarketcap.com/all/views/all/')[2]
+# coinmarketcap = coinmarketcap.iloc[:, : 10].dropna()
+# touring_index = list(coinmarketcap['Symbol'])  # tickers que poderão ser negociados
 
 ###
 # ACESSO AO SISTEMA DA BINANCE
 ###
-def carteira():
+def carteira_binance():
     cliente = Client(api_key, api_secret)
     print('Solicitando informações à Binance')
     infos = cliente.get_account()  # carrega as infos do usuário
@@ -153,9 +163,11 @@ def adiciona_indicadores(df, periodo=20):
     print('       RSI')
     df['rsi'] = pandas_ta.rsi(close=df['close'], length=periodo)
 # MACD (TENDENCIA)
-    print('       MACD')
+    print('       MACD (original, normalizado e sinal)')
     macd = pandas_ta.macd(close=df['close'], length=periodo).iloc[:, 0]
-    df['macd'] = macd.sub(macd.mean()).div(macd.std())
+    df['macd'] = pandas_ta.macd(close=df['close'], length=periodo).iloc[:, 0]
+    df['macd_norm'] = macd.sub(macd.mean()).div(macd.std())
+    df['macd_s'] = pandas_ta.macd(close=df['close'], length=periodo).iloc[:, 2]
 # Média Móvel curta (24 - 6 horas) (TENDENCIA)
     print('       Média móvel curta (6 horas)')
     df['mm24'] = pandas_ta.sma(df['close'], length=24)
@@ -173,6 +185,159 @@ def adiciona_indicadores(df, periodo=20):
                                             offset=1)['SUPERTd_7_3.0']
 #
     print('Informações adicionadas ao dataframe com sucesso. Remover NaNs manualmente.')
+
+
+###
+# BACKTEST
+###
+def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=False):
+    # Definição inicial dos componentes utilizados em backtesting
+    tx_comissao = 0.001
+    saldo_inicial = saldo_inicial  # Define um saldo inicial hipotético, em R$
+    marcador = 1
+    carteira_full = max_ordens  # Máximo de ordens abertas ao mesmo tempo
+    periodo = df.copy()
+    periodo['sinal_est'] = 0  # Cria sinais neutros
+    periodo['cv'] = 0  # Cria estados neutros, sem ordem de compra ou venda
+    periodo['marcador'] = 0  # Cria marcador de compra neutro
+    periodo['saldo_inicial'] = 0.0
+    periodo['saldo_final'] = 0.0
+    periodo['saldo_cart'] = 0.0
+    periodo['patrimonio'] = 0.0
+    periodo.loc[compra, 'sinal_est'] = 1  # Registro backtest compra
+    periodo.loc[venda, 'sinal_est'] = -1  # Registro backtest venda
+    inicio = periodo.index[0]
+    periodo.loc[inicio, 'saldo_inicial'] = saldo_inicial
+    #
+    #
+    for idx in periodo.index:
+        status = 0
+    # Recupera o saldo final anterior, igual ao inicial se for a primeira observação
+        if idx == inicio:
+            periodo.loc[idx, 'saldo_inicial'] = saldo_inicial
+            periodo.loc[idx, 'patrimonio'] = saldo_inicial
+        else:
+            periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - 1), 'saldo_final']
+    # Se a carteira estiver vazia, não tem recurso para comprar,
+    # nem verifica os sinais de compra
+    # E se a carteira estiver cheia novamente, refaz o valor das fatias
+        if carteira_full == 0:
+            print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Sem recursos para comprar mais nada')
+            pass
+        elif carteira_full == max_ordens:
+            fatia = periodo.loc[idx, 'saldo_inicial']/carteira_full
+        else:
+            pass
+    # PROCESSAMENTO DE COMPRAS
+        if periodo.loc[idx, 'sinal_est'] == 1:  # SINAL DE COMPRA
+            if carteira_full == 0:  # SE CARTEIRA VAZIA, NÃO TEM COMO COMPRAR
+                pass
+            else:
+                periodo.loc[idx, 'cv'] = 1
+                periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial'] - fatia
+                if idx == periodo.index[0]:
+                    periodo.loc[idx, 'saldo_cart'] = fatia*(1-tx_comissao)
+                else:
+                    periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart'] + (fatia*(1-tx_comissao))
+                carteira_full -= 1
+                status = 1
+                periodo.loc[idx, 'marcador'] = marcador
+                periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
+                print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Compra realizada!')
+    # PROCESSAMENTO DE VENDAS
+        elif periodo.loc[idx, 'sinal_est'] == -1:  # SINAL DE VENDA
+            if carteira_full == max_ordens:  # SE CARTEIRA CHEIA, NÃO TEM O QUE VENDER
+                pass
+            else:
+                periodo.loc[idx, 'cv'] = -1
+                if idx == periodo.index[-1]:  # SE FOR ÚLTIMO PERÍODO, VENDE TODO SALDO AO PREÇO DO FECHAMENTO DE AGORA
+                    valor_medio = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].mean()
+                    variacao = (periodo.loc[(idx), 'close'] - valor_medio)/valor_medio
+                    venda = (fatia + (fatia * variacao))*(1-tx_comissao)
+                    periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
+                    print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
+                    periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart'] - fatia
+                    periodo.loc[idx, 'marcador'] = marcador*-1
+                    periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
+                    carteira_full += 1
+                    print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Zerando posições em fim de período  ***')
+                else:
+                    valor_medio = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].mean()
+                    variacao = (periodo.loc[(idx + 1), 'close'] - valor_medio)/valor_medio
+                    venda = (fatia + (fatia * variacao))*(1-tx_comissao)
+                    periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
+                    print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
+                    periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart'] - fatia
+                    periodo.loc[idx, 'marcador'] = marcador*-1
+                    periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
+                    carteira_full += 1
+                    if carteira_full == max_ordens:
+                        print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Todas posições zeradas!  ***')
+                        marcador += 1
+                    else:
+                        pass
+                    status = -1
+        else:
+            pass
+    # PROCESSAMENTO DE MOMENTOS SEM NEGOCIAÇÃO
+        if status == 0:
+            if idx == periodo.index[0]:
+                periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
+            else:
+                periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart']
+                periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - 1), 'saldo_final']
+                periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
+                periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
+        else:
+            pass
+        if idx == periodo.index[-1]:  # SE FOR ÚLTIMO PERÍODO, VENDE TODO SALDO AO PREÇO DO FECHAMENTO DE AGORA
+            valor_medio = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].mean()
+            variacao = (periodo.loc[(idx), 'close'] - valor_medio)/valor_medio
+            fatia = periodo.loc[(idx), 'saldo_cart']
+            venda = (fatia + (fatia * variacao))*(1-tx_comissao)
+            periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
+            periodo.loc[idx, 'saldo_cart'] = 0
+            periodo.loc[idx, 'marcador'] = marcador*-1
+            periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
+            print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Zerando posições em fim de período  ***')
+        else:
+            pass
+    periodo['rendimento'] = (periodo['patrimonio']/periodo['patrimonio'].iloc[0])-1
+    periodo['ativo_acum'] = (periodo['close']/periodo['close'].iloc[0])-1
+    saldo_final = round(periodo['saldo_final'].iloc[-1], 2) + round(periodo['saldo_cart'].iloc[-1], 2)
+    saldo_maximo = round(periodo.patrimonio.max(), 2)
+    rend_est = round(((saldo_final-saldo_inicial)/saldo_inicial)*100, 2)
+    rend_at = round(((periodo.close.iloc[-1]/periodo.open.iloc[0])-1)*100, 2)
+    rend_relat = round(((rend_est/rend_at)-1)*100, 2)
+    print(f'\n\nSaldo inicial hipotético: R${saldo_inicial}')
+    print(f'Saldo final: R${saldo_final}')
+    print(f'Rendimento total da estratégia: {rend_est}%')
+    print(f'Rendimento total do ativo: {rend_at}%')
+    print(f'Beta do rendimento: {rend_relat}%')
+    if rend_at > rend_est:
+        print("\n\nRESULTADO: a estratégia NÃO SUPEROU o rendimento do ativo!")
+    else:
+        print("\n\nRESULTADO: Parabéns, a estratégia SUPEROU o rendimento do ativo!")
+    print('\n\n   Características da estratégia:')
+    print(f'Número de ordens simultâneas: {max_ordens}')
+    print(f'Número de trades de compra realizados: {periodo[periodo['cv'] == 1]['cv'].sum()}')
+    print(f'Número de trades de venda realizados: {abs(periodo[periodo['cv'] == -1]['cv'].sum())}')
+    print(f'Intervalo das observações: ' + str(intervalo) + 'm')
+    print(f'Patrimônio máximo no período: R${saldo_maximo}')
+    print(f'Valor máximo do ativo no período: R${periodo.close.max()}')
+    print(f'Valor mínimo do ativo no período: R${periodo.close.min()}')
+    if grafico == True:
+        plt.plot(periodo.set_index(keys='timestamp')['ativo_acum'], color='orange', label='Rendimento do Ativo')
+        plt.plot(periodo.set_index(keys='timestamp')['rendimento'], color='magenta', label='Rendimento da Estratégia')
+        plt.xlabel("Tempo")
+        plt.ylabel("Rentabilidade")
+        plt.title('Gráfico comparativo da rentabilidade\nAtivo x Estratégia')
+        plt.legend()
+        plt.show()
+    elif grafico == False:
+        pass
+    else:
+        print('Hiperparâmetro "grafico" deve ser True ou False, informado diferente.')
 
 
 ####
@@ -193,35 +358,15 @@ infos['accountType']
 infos['uid']
 
 
-# Definições dos indicadores:
-# supertrend: sinal de compra (1) ou de venda (-1)
-# médias móveis: se uma média móvel mais curta estiver abaixo de uma média móvel
-#                mais longa, sinal de compra. O reverso é sinal de venda.
-# volatilidade: maior volatilidade indica maior mudança de preços, menor
-#               volatilidade indica maior estabilidade na tendência
-tx_comissao = 0.001
-intervalo = 15
-historico = valores_historicos(dias=(365*3), intervalo=str(str(intervalo)+'m'))
-adiciona_indicadores(historico, (24*4))
-historico = historico.dropna()
-historico = historico.reset_index()
-
-
-periodo = historico[-(672*4*12):] 
-plt.plot(periodo.set_index(keys='timestamp')['mm672'], color='green', label='Média Móvel Longa (1 semana)')
-plt.plot(periodo.set_index(keys='timestamp')['mm192'], color='blue', label='Média Móvel Média (2 dias)')
-plt.plot(periodo.set_index(keys='timestamp')['mm24'], color='red', label='Média Móvel Curta (6 horas)')
-plt.plot(periodo.set_index(keys='timestamp')['close'], color='gray', label='Preço de fechamento do ativo')
-plt.xlabel("Tempo")
-plt.ylabel("Valor do ativo")
-plt.title('Gráfico do histórico do valor do ativo')
-plt.legend()
-plt.show()
-
-
 ###
 # BACKTESTING
 ###
+
+intervalo = 15
+historico = valores_historicos(dias=(180), intervalo=str(str(intervalo)+'m'))
+adiciona_indicadores(historico, (24*4))
+historico = historico.dropna()
+historico = historico.reset_index()
 
 # ESTRATÉGIA 1: utilizando sinais apenas com a média curta
 # - Preço > média curta = sinal de compra
@@ -249,136 +394,76 @@ plt.show()
 # as vendas saiam com preço médio das compras
 # - Média curta > média longa = sinal de compra
 # - Preço < média longa = sinal de venda
+#       RESULTADO: 180 dias, estratégia -0,50%, ativo -15,20%
+teste_compra = historico['mm24'] > historico['mm672']  # Filtro backtest compra
+teste_venda = historico['close'] < historico['mm672']  # Filtro backtest venda
 
-historico['sinal_est'] = 0  # Cria sinais neutros
-historico['marcador'] = 0  # Cria marcador de compra neutro
-mask_compra = historico['mm24'] > historico['mm672']  # Filtro backtest compra
-mask_venda = historico['close'] < historico['mm672']  # Filtro backtest venda
-historico.loc[mask_compra, 'sinal_est'] = 1  # Registro backtest compra
-historico.loc[mask_venda, 'sinal_est'] = -1  # Registro backtest venda
-saldo_inicial = 1000  # Define um saldo inicial hipotético, em R$
-#
-marcador = 1
-max_ordens = 5
-carteira_full = max_ordens  # Máximo de ordens abertas ao mesmo tempo
-historico['cv'] = 0  # Cria estados neutros, sem ordem de compra ou venda
-historico['saldo_inicial'] = 0.0
-historico['saldo_final'] = 0.0
-historico['saldo_cart'] = 0.0
-historico['patrimonio'] = 0.0
-periodo = historico.copy()
-inicio = periodo.index[0]
-periodo.loc[inicio, 'saldo_inicial'] = saldo_inicial
-#
-#
-for idx in periodo.index:
-    status = 0
-# Recupera o saldo final anterior, igual ao inicial se for a primeira observação
-    if idx == inicio:
-        periodo.loc[idx, 'saldo_inicial'] = saldo_inicial
-        periodo.loc[idx, 'patrimonio'] = saldo_inicial
-    else:
-        periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - 1), 'saldo_final']
-#        periodo.loc[idx, 'saldo_inicial'] = periodo['saldo_final'].shift(1).loc[idx]
-# Se a carteira estiver vazia, não tem recurso para comprar,
-# nem verifica os sinais de compra
-# E se a carteira estiver cheia novamente, refaz o valor das fatias
-    if carteira_full == 0:
-        print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Sem recursos para comprar mais nada')
-        pass
-    elif carteira_full == max_ordens:
-        fatia = periodo.loc[idx, 'saldo_inicial']/carteira_full
-    else:
-        pass
-# PROCESSAMENTO DE COMPRAS
-    if periodo.loc[idx, 'sinal_est'] == 1:  # SINAL DE COMPRA
-        if carteira_full == 0:  # SE CARTEIRA VAZIA, NÃO TEM COMO COMPRAR
-            pass
-        else:
-            periodo.loc[idx, 'cv'] = 1
-            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial'] - fatia
-            if idx == periodo.index[0]:
-                periodo.loc[idx, 'saldo_cart'] = fatia*(1-tx_comissao)
-            else:
-                periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart'] + (fatia*(1-tx_comissao))
-            carteira_full -= 1
-            status = 1
-            periodo.loc[idx, 'marcador'] = marcador
-            periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-            print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Compra realizada!')
-# PROCESSAMENTO DE VENDAS
-    elif periodo.loc[idx, 'sinal_est'] == -1:  # SINAL DE VENDA
-        if carteira_full == max_ordens:  # SE CARTEIRA CHEIA, NÃO TEM O QUE VENDER
-            pass
-        else:
-            periodo.loc[idx, 'cv'] = -1
-            if idx == periodo.index[-1]:  # SE FOR ÚLTIMO PERÍODO, NÃO TEM COMO CONTABILIZAR VENDA COM PREÇO DE FECHAMENTO
-                pass
-            else:
-                valor_medio = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].mean()
-                variacao = (periodo.loc[(idx + 1), 'close'] - valor_medio)/valor_medio
-                venda = (fatia + (fatia * variacao))*(1-tx_comissao)
-                periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
-                print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
-                periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart'] - fatia
-                periodo.loc[idx, 'marcador'] = marcador*-1
-                periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-                carteira_full += 1
-#                carteira_full = max_ordens
-                if carteira_full == max_ordens:
-                    print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Todas posições zeradas!  ***')
-                    marcador += 1
-                else:
-                    pass
-                status = -1
-    else:
-        pass
-# PROCESSAMENTO DE MOMENTOS SEM NEGOCIAÇÃO
-    if status == 0:
-        if idx == periodo.index[0]:
-            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
-        else:
-            periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart']
-            periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - 1), 'saldo_final']
-            periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
-            periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-    else:
-        pass
-periodo['rendimento'] = (periodo['patrimonio']/periodo['patrimonio'].iloc[0])-1
-periodo['ativo_acum'] = (periodo['close']/periodo['close'].iloc[0])-1
-saldo_final = round(periodo['saldo_final'].iloc[-1], 2) + round(periodo['saldo_cart'].iloc[-1], 2)
-saldo_maximo = round(periodo.patrimonio.max(), 2)
-rend_est = round(((saldo_final-saldo_inicial)/saldo_inicial)*100, 2)
-rend_at = round(((periodo.close.iloc[-1]/periodo.open.iloc[0])-1)*100, 2)
-rend_relat = round(((rend_est/rend_at)-1)*100, 2)
-print(f'\nSaldo final: R${saldo_final}')
-print(f'Rendimento total da estratégia: {rend_est}%')
-print(f'Rendimento total do ativo: {rend_at}%')
-print(f'Beta do rendimento: {rend_relat}%')
-if rend_at > rend_est:
-    print("Mas que estratégia mais bosta")
-else:
-    print("Meus parabéns, superou o ativo!")
-print('\n\n   Características da estratégia:')
-print(f'Número de ordens simultâneas: {max_ordens}')
-print(f'Número de trades de compra realizados: {periodo[periodo['cv'] == 1]['cv'].sum()}')
-print(f'Número de trades de venda realizados: {abs(periodo[periodo['cv'] == -1]['cv'].sum())}')
-print(f'Intervalo das observações: ' + str(intervalo) + 'm')
-print(f'Patrimônio máximo no período: R${saldo_maximo}')
-print(f'Valor máximo do ativo no período: R${periodo.close.max()}')
-print(f'Valor mínimo do ativo no período: R${periodo.close.min()}')
+backtest(historico, max_ordens=10, compra=teste_compra, venda=teste_venda, grafico=True)
 
-# Gráfico de comparação das rentabilidades ao longo do tempo
-plt.plot(periodo.set_index(keys='timestamp')['ativo_acum'], color='orange', label='Rendimento do Ativo')
-plt.plot(periodo.set_index(keys='timestamp')['rendimento'], color='magenta', label='Rendimento da Estratégia')
+# ESTRATÉGIA 4: 3b + filtro por RSI
+#       RESULTADO: 180 dias, estratégia 2,94%, ativo -14,11%
+for id in historico.index:
+    historico.loc[id, 'rsi_min7d'] = historico['rsi'].loc[(id-(4*24*7)):id].min()
+    historico.loc[id, 'rsi_max7d'] = historico['rsi'].loc[(id-(4*24*7)):id].max()
+
+mask_compra = (historico['rsi'] < historico['rsi_min7d']) & \
+        (historico['mm24'] > historico['mm672'])
+mask_venda = (historico['rsi'] > historico['rsi_max7d']) & \
+        (historico['close'] < historico['mm672'])
+
+backtest(historico, max_ordens=5, compra=mas_compra, venda=mask_venda)
+
+
+# ESTRATÉGIA 5: Sinal MACD (macd_s) > MACD (macd) OU macd_norm
+# Testar com e sem as médias móveis junto
+#       RESULTADO: 180 dias, estratégia 4,45%, ativo -14,11%
+for id in historico.index:
+    tempo = 2
+    if id < (tempo + 1):
+        historico.loc[id, 'close_lagged'] = 1
+    elif historico.loc[(id - tempo), 'close'] < historico.loc[id, 'close']:
+        historico.loc[id, 'close_lagged'] = 1
+    else:
+        historico.loc[id, 'close_lagged'] = 0
+
+mask_compra = (historico['macd_s'] > historico['macd']) &\
+                  (historico['close'] > historico['mm672']) &\
+                  (historico.rsi < historico.rsi_min7d)  # Filtro backtest compra
+mask_venda = (historico.close < historico.mm672)
+
+
+mask_compra.sum()
+mask_venda.sum()
+
+
+backtest(historico)
+
+
+
+# - ROC: linha central em 0, preço subindo ROC > 0, preço caindo ROC < 0
+#        de repente usar min() para entrada e max() para saída, algo nesse sentido
+# - MACD: indicador de momento. Normalmente se utiliza como referência o
+#         cruzamento MACD x Sinal MACD para entradas e saídas
+# - RSI: varia de 0 a 100, RSI < 30 indica sobrevenda (então, entrada) e
+#        RSI > 70 indica sobrecompra (então, saída)
+# - ATR: deve ser comparado a ele mesmo defasado. Indica volatilidade, mas
+#        não apresenta sinais de entrada/saída por si só. Vale a pena
+#        observar comportamento no gráfico e decidir uma melhor estratégia
+
+
+# Gráfico das médias móveis
+plt.plot(periodo.set_index(keys='timestamp')['mm672'], color='green', label='Média Móvel Longa (1 semana)')
+plt.plot(periodo.set_index(keys='timestamp')['mm192'], color='blue', label='Média Móvel Média (2 dias)')
+plt.plot(periodo.set_index(keys='timestamp')['mm24'], color='red', label='Média Móvel Curta (6 horas)')
+plt.plot(periodo.set_index(keys='timestamp')['close'], color='gray', label='Preço de fechamento do ativo')
 plt.xlabel("Tempo")
-plt.ylabel("Rentabilidade")
-plt.title('Gráfico comparativo da rentabilidade\nAtivo x Estratégia')
+plt.ylabel("Valor do ativo")
+plt.title('Gráfico do histórico do valor do ativo')
 plt.legend()
 plt.show()
 
 
-periodo['rendimento'] = (periodo['patrimonio']/periodo['patrimonio'].iloc[0])-1
-periodo['ativo_acum'] = (periodo['close']/periodo['close'].iloc[0])-1
-
+#
 periodo[['sinal_est', 'cv', 'marcador', 'saldo_inicial', 'saldo_final', 'saldo_cart']].tail(10)
+#
+historico.index[-1]
