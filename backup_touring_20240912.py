@@ -247,7 +247,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
     # nem verifica os sinais de compra
     # E se a carteira estiver cheia novamente, refaz o valor das fatias
         if carteira_full == 0:
-            print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Sem recursos para comprar mais nada')
+            print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Sem recursos para comprar mais nada')
             pass
         elif carteira_full == max_ordens:
             fatia = periodo.loc[idx, 'saldo_inicial']/carteira_full
@@ -268,7 +268,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
                 status = 1
                 periodo.loc[idx, 'marcador'] = marcador
                 periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-                print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Compra realizada!')
+                print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Compra realizada!')
     # PROCESSAMENTO DE VENDAS
         elif periodo.loc[idx, 'sinal_est'] == -1:  # SINAL DE VENDA
             if carteira_full == max_ordens:  # SE CARTEIRA CHEIA, NÃO TEM O QUE VENDER
@@ -280,24 +280,24 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
                     variacao = (periodo.loc[(idx), 'close'] - valor_medio)/valor_medio
                     venda = (fatia + (fatia * variacao))*(1-tx_comissao)
                     periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
-                    print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
+                    print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
                     periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart'] - fatia
                     periodo.loc[idx, 'marcador'] = marcador*-1
                     periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
                     carteira_full += 1
-                    print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Zerando posições em fim de período  ***')
+                    print(f'Backtesting finalizado! ***  Zerando posições em fim de período  ***')
                 else:
                     valor_medio = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].mean()
                     variacao = (periodo.loc[(idx + 1), 'close'] - valor_medio)/valor_medio
                     venda = (fatia + (fatia * variacao))*(1-tx_comissao)
                     periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
-                    print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
+                    print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
                     periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart'] - fatia
                     periodo.loc[idx, 'marcador'] = marcador*-1
                     periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
                     carteira_full += 1
                     if carteira_full == max_ordens:
-                        print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Todas posições zeradas!  ***')
+                        print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Todas posições zeradas!  ***')
                         marcador += 1
                     else:
                         pass
@@ -324,7 +324,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
             periodo.loc[idx, 'saldo_cart'] = 0
             periodo.loc[idx, 'marcador'] = marcador*-1
             periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-            print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Zerando posições em fim de período  ***')
+            print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Zerando posições em fim de período  ***')
         else:
             pass
     periodo['rendimento'] = (periodo['patrimonio']/periodo['patrimonio'].iloc[0])-1
@@ -362,7 +362,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
     elif grafico == False:
         pass
     else:
-        print('Hiperparâmetro "grafico" deve ser True ou False, informado diferente.')
+        print('\n*Não foi possível desenhar o gráfico!*\nHiperparâmetro "grafico" deve ser True ou False, informado qualquer outra coisa.')
 
 
 ####
@@ -388,7 +388,7 @@ infos['uid']
 ###
 
 intervalo = 15
-historico = valores_historicos(dias=(180), intervalo=str(str(intervalo)+'m'))
+historico = valores_historicos(dias=(180), intervalo=str(str(intervalo)+'m'), ticker='BTCUSDT')
 adiciona_indicadores(historico)
 historico = historico.dropna()
 historico = historico.reset_index()
@@ -423,7 +423,7 @@ historico = historico.reset_index()
 teste_compra = historico['mm24'] > historico['mm672']  # Filtro backtest compra
 teste_venda = historico['close'] < historico['mm672']  # Filtro backtest venda
 
-backtest(historico, max_ordens=10, compra=teste_compra, venda=teste_venda)
+backtest(historico, max_ordens=5, compra=teste_compra, venda=teste_venda)
 
 # ESTRATÉGIA 4: 3b + filtro por RSI
 #       RESULTADO: 180 dias, estratégia 2,94%, ativo -14,11%
@@ -436,7 +436,7 @@ mask_compra = (historico['rsi'] < historico['rsi_min7d']) & \
 mask_venda = (historico['rsi'] > historico['rsi_max7d']) & \
         (historico['close'] < historico['mm672'])
 
-backtest(historico, max_ordens=5, compra=mas_compra, venda=mask_venda)
+backtest(historico, max_ordens=10, compra=mas_compra, venda=mask_venda)
 
 
 # ESTRATÉGIA 5: Sinal MACD (macd_s) > MACD (macd) OU macd_norm
@@ -455,13 +455,6 @@ mask_compra = (historico['macd_s'] > historico['macd']) &\
                   (historico['close'] > historico['mm672']) &\
                   (historico.rsi < historico.rsi_min7d)  # Filtro backtest compra
 mask_venda = (historico.close < historico.mm672)
-
-
-mask_compra.sum()
-mask_venda.sum()
-
-
-backtest(historico)
 
 
 
