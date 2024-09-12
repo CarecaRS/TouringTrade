@@ -28,6 +28,9 @@ from keys import api_secret, api_key  # Importa a api do arquivo local keys.py
 #   carteira em um objeto separado (tipo portfolio), assim dá para agilizar
 #   o código (eu acho) e o controle das quantidades e preços médios deve
 #   ficar melhor
+# - De repente montar estratégia que a venda se dê por stpo loss (tipo mínima
+#   anterior ou algo assim) e também por stop gain (tipo X vezes a diferença
+#   entre as duas últimas máximas ou algo nesse sentido)
 
 ###
 # JÁ FEITO
@@ -190,10 +193,8 @@ def adiciona_indicadores(df, periodo=20):
 ###
 # BACKTEST
 ###
-def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=False):
+def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comissao = 0.001, grafico=False):
     # Definição inicial dos componentes utilizados em backtesting
-    tx_comissao = 0.001
-    saldo_inicial = saldo_inicial  # Define um saldo inicial hipotético, em R$
     marcador = 1
     carteira_full = max_ordens  # Máximo de ordens abertas ao mesmo tempo
     periodo = df.copy()
@@ -208,8 +209,30 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
     periodo.loc[venda, 'sinal_est'] = -1  # Registro backtest venda
     inicio = periodo.index[0]
     periodo.loc[inicio, 'saldo_inicial'] = saldo_inicial
-    #
-    #
+    # Verifica se tem algum sinal de ordem de compra
+    if periodo[periodo['sinal_est'] == 1]['sinal_est'].sum() == 0:
+        print('\n\n###################################################################################')
+        print('###                                                                             ###')
+        print('###        >>> Estratégia sem sinal de COMPRA no período informado! <<<         ###')
+        print('###                                                                             ###')
+        print('###    Vai dar erro com "periodo" pq eu deletei para quebrar a função mesmo:    ###')
+        print('###                                                                             ###')
+        print('###################################################################################\n\n')
+        del periodo
+    else:
+        pass
+    if periodo[periodo['sinal_est'] == -1]['sinal_est'].sum() == 0:
+        print('\n\n###################################################################################')
+        print('###                                                                             ###')
+        print('###         >>> Estratégia sem sinal de VENDA no período informado! <<<         ###')
+        print('###                                                                             ###')
+        print('###    Vai dar erro com "periodo" pq eu deletei para quebrar a função mesmo:    ###')
+        print('###                                                                             ###')
+        print('###################################################################################\n\n')
+        del periodo
+    else:
+        pass
+#
     for idx in periodo.index:
         status = 0
     # Recupera o saldo final anterior, igual ao inicial se for a primeira observação
@@ -222,7 +245,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
     # nem verifica os sinais de compra
     # E se a carteira estiver cheia novamente, refaz o valor das fatias
         if carteira_full == 0:
-            print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Sem recursos para comprar mais nada')
+            print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Sem recursos para comprar mais nada')
             pass
         elif carteira_full == max_ordens:
             fatia = periodo.loc[idx, 'saldo_inicial']/carteira_full
@@ -243,7 +266,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
                 status = 1
                 periodo.loc[idx, 'marcador'] = marcador
                 periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-                print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Compra realizada!')
+                print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Compra realizada!')
     # PROCESSAMENTO DE VENDAS
         elif periodo.loc[idx, 'sinal_est'] == -1:  # SINAL DE VENDA
             if carteira_full == max_ordens:  # SE CARTEIRA CHEIA, NÃO TEM O QUE VENDER
@@ -255,24 +278,24 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
                     variacao = (periodo.loc[(idx), 'close'] - valor_medio)/valor_medio
                     venda = (fatia + (fatia * variacao))*(1-tx_comissao)
                     periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
-                    print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
+                    print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
                     periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart'] - fatia
                     periodo.loc[idx, 'marcador'] = marcador*-1
                     periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
                     carteira_full += 1
-                    print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Zerando posições em fim de período  ***')
+                    print(f'Backtesting finalizado! ***  Zerando posições em fim de período  ***')
                 else:
                     valor_medio = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].mean()
                     variacao = (periodo.loc[(idx + 1), 'close'] - valor_medio)/valor_medio
                     venda = (fatia + (fatia * variacao))*(1-tx_comissao)
                     periodo.loc[idx, 'saldo_final'] = venda + periodo.loc[idx, 'saldo_inicial']
-                    print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
+                    print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Venda realizada!')
                     periodo.loc[idx, 'saldo_cart'] = periodo.loc[(idx - 1), 'saldo_cart'] - fatia
                     periodo.loc[idx, 'marcador'] = marcador*-1
                     periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
                     carteira_full += 1
                     if carteira_full == max_ordens:
-                        print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Todas posições zeradas!  ***')
+                        print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Todas posições zeradas!  ***')
                         marcador += 1
                     else:
                         pass
@@ -299,7 +322,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
             periodo.loc[idx, 'saldo_cart'] = 0
             periodo.loc[idx, 'marcador'] = marcador*-1
             periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-            print(f'Processando {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Zerando posições em fim de período  ***')
+            print(f'Backtesting finalizado! ***  Zerando posições em fim de período  ***')
         else:
             pass
     periodo['rendimento'] = (periodo['patrimonio']/periodo['patrimonio'].iloc[0])-1
@@ -327,17 +350,125 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
     print(f'Valor máximo do ativo no período: R${periodo.close.max()}')
     print(f'Valor mínimo do ativo no período: R${periodo.close.min()}')
     if grafico == True:
-        plt.plot(periodo.set_index(keys='timestamp')['ativo_acum'], color='orange', label='Rendimento do Ativo')
-        plt.plot(periodo.set_index(keys='timestamp')['rendimento'], color='magenta', label='Rendimento da Estratégia')
+    # Cria as flags de entrada e saída
+        df[['entrada', 'saida']] = 0
+        mask = df['marcador'] != 0
+        for i in df[mask]['marcador']:
+            if i > 0:
+                for idx1 in (df[df['marcador'] == i]).index:
+                    df.loc[idx1, 'entrada'] = 1
+            elif i < 0:
+                for idxm1 in (df[df['marcador'] == i]).index:
+                    df.loc[idxm1, 'saida'] = 1
+            else:
+                pass
+        scatter_entrada = []
+        scatter_saida = []
+        for point in df[(df.entrada == 1)].index:
+            scatter_entrada.append(df.loc[point, ['timestamp', 'ativo_acum']])
+        for point in df[(df.saida == 1)].index:
+            scatter_saida.append(df.loc[point, ['timestamp', 'ativo_acum']])
+        # Gráfico com as flags criadas
+        plt.plot(df.set_index(keys='timestamp')['ativo_acum'],
+                 color='orange', label='Rendimento do Ativo',
+                 zorder=5)
+        plt.plot(df.set_index(keys='timestamp')['rendimento'],
+                 color='magenta', label='Rendimento da Estratégia',
+                 zorder=7)
         plt.xlabel("Tempo")
         plt.ylabel("Rentabilidade")
         plt.title('Gráfico comparativo da rentabilidade\nAtivo x Estratégia')
+        plt.scatter(x=pd.DataFrame(scatter_entrada)['timestamp'],
+                    y=pd.DataFrame(scatter_entrada)['ativo_acum'],
+                    color='green',
+                    marker='^',
+                    label='Ponto de entrada',
+                    zorder=10)
+        plt.scatter(x=pd.DataFrame(scatter_saida)['timestamp'],
+                    y=pd.DataFrame(scatter_saida)['ativo_acum'],
+                    color='red',
+                    marker='v',
+                    label='Ponto de saída',
+                    zorder=10)
         plt.legend()
         plt.show()
     elif grafico == False:
         pass
     else:
-        print('Hiperparâmetro "grafico" deve ser True ou False, informado diferente.')
+        print('\n*Não foi possível desenhar o gráfico!*\nHiperparâmetro "grafico" deve ser True ou False, informado qualquer outra coisa.')
+    return periodo
+
+
+def backtest_summary(df, max_ordens=10, saldo_inicial=1000, grafico=False):
+    saldo_final = round(df['saldo_final'].iloc[-1], 2) + round(df['saldo_cart'].iloc[-1], 2)
+    saldo_maximo = round(df.patrimonio.max(), 2)
+    rend_est = round(((saldo_final-saldo_inicial)/saldo_inicial)*100, 2)
+    rend_at = round(((df.close.iloc[-1]/df.open.iloc[0])-1)*100, 2)
+    rend_relat = round(((rend_est/rend_at)-1)*100, 2)
+    print(f'\n\nSaldo inicial hipotético: R${saldo_inicial}')
+    print(f'Saldo final: R${saldo_final}')
+    print(f'Rendimento total da estratégia: {rend_est}%')
+    print(f'Rendimento total do ativo: {rend_at}%')
+    print(f'Beta do rendimento: {rend_relat}%')
+    if rend_at > rend_est:
+        print("\n\nRESULTADO: a estratégia NÃO SUPEROU o rendimento do ativo!")
+    else:
+        print("\n\nRESULTADO: Parabéns, a estratégia SUPEROU o rendimento do ativo!")
+    print('\n\n   Características da estratégia:')
+    print(f'Número de ordens simultâneas: {max_ordens}')
+    print(f'Número de trades de compra realizados: {df[df['cv'] == 1]['cv'].sum()}')
+    print(f'Número de trades de venda realizados: {abs(df[df['cv'] == -1]['cv'].sum())}')
+    print(f'Intervalo das observações: ' + str(intervalo) + 'm')
+    print(f'Patrimônio máximo no período: R${saldo_maximo}')
+    print(f'Valor máximo do ativo no período: R${df.close.max()}')
+    print(f'Valor mínimo do ativo no período: R${df.close.min()}')
+    if grafico == True:
+    # Cria as flags de entrada e saída
+        df[['entrada', 'saida']] = 0
+        mask = df['marcador'] != 0
+        for i in df[mask]['marcador']:
+            if i > 0:
+                for idx1 in (df[df['marcador'] == i]).index:
+                    df.loc[idx1, 'entrada'] = 1
+            elif i < 0:
+                for idxm1 in (df[df['marcador'] == i]).index:
+                    df.loc[idxm1, 'saida'] = 1
+            else:
+                pass
+        scatter_entrada = []
+        scatter_saida = []
+        for point in df[(df.entrada == 1)].index:
+            scatter_entrada.append(df.loc[point, ['timestamp', 'ativo_acum']])
+        for point in df[(df.saida == 1)].index:
+            scatter_saida.append(df.loc[point, ['timestamp', 'ativo_acum']])
+        # Gráfico com as flags criadas
+        plt.plot(df.set_index(keys='timestamp')['ativo_acum'],
+                 color='orange', label='Rendimento do Ativo',
+                 zorder=5)
+        plt.plot(df.set_index(keys='timestamp')['rendimento'],
+                 color='magenta', label='Rendimento da Estratégia',
+                 zorder=7)
+        plt.xlabel("Tempo")
+        plt.ylabel("Rentabilidade")
+        plt.title('Gráfico comparativo da rentabilidade\nAtivo x Estratégia')
+        plt.scatter(x=pd.DataFrame(scatter_entrada)['timestamp'],
+                    y=pd.DataFrame(scatter_entrada)['ativo_acum'],
+                    color='green',
+                    marker='^',
+                    label='Ponto de entrada',
+                    zorder=10)
+        plt.scatter(x=pd.DataFrame(scatter_saida)['timestamp'],
+                    y=pd.DataFrame(scatter_saida)['ativo_acum'],
+                    color='red',
+                    marker='v',
+                    label='Ponto de saída',
+                    zorder=10)
+        plt.legend()
+        plt.show()
+    elif grafico == False:
+        pass
+    else:
+        print('\n*Não foi possível desenhar o gráfico!*\nHiperparâmetro "grafico" deve ser True ou False, informado qualquer outra coisa.')
 
 
 ####
@@ -358,112 +489,189 @@ infos['accountType']
 infos['uid']
 
 
+#########
+# CRIAÇÃO DAS FLAGS DE ENTRADA E SAÍDA
+# (uso de banco de dados aleatório)
+#########
+
+thiago[['entrada', 'saida']] = 0
+mask = thiago['marcador'] != 0
+for i in thiago[mask]['marcador']:
+    if i > 0:
+        for idx1 in (thiago[thiago['marcador'] == i]).index:
+            thiago.loc[idx1, 'entrada'] = 1
+    elif i < 0:
+        for idxm1 in (thiago[thiago['marcador'] == i]).index:
+            thiago.loc[idxm1, 'saida'] = 1
+    else:
+        pass
+
+# Gráfico com as flags criadas
+plt.plot(thiago.set_index(keys='timestamp')['ativo_acum'],
+         color='orange', label='Rendimento do Ativo',
+         zorder=5)
+plt.plot(thiago.set_index(keys='timestamp')['rendimento'],
+         color='magenta', label='Rendimento da Estratégia',
+         zorder=7)
+plt.xlabel("Tempo")
+plt.ylabel("Rentabilidade")
+plt.title('Gráfico comparativo da rentabilidade\nAtivo x Estratégia')
+plt.scatter(x=pd.DataFrame(scatter_entrada)['timestamp'],
+            y=pd.DataFrame(scatter_entrada)['ativo_acum'],
+            color='green',
+            marker='^',
+            label='Ponto de entrada',
+            zorder=10)
+plt.scatter(x=pd.DataFrame(scatter_saida)['timestamp'],
+            y=pd.DataFrame(scatter_saida)['ativo_acum'],
+            color='red',
+            marker='v',
+            label='Ponto de saída',
+            zorder=10)
+plt.legend()
+plt.show()
+
+
+scatter_entrada = []
+scatter_saida = []
+for point in thiago[(thiago.entrada == 1)].index:
+    scatter_entrada.append(thiago.loc[point, ['timestamp', 'ativo_acum']])
+for point in thiago[(thiago.saida == 1)].index:
+    scatter_saida.append(thiago.loc[point, ['timestamp', 'ativo_acum']])
+
+pd.DataFrame(scatter_entrada)
+scatter_saida
+
+thiago
+
 ###
 # BACKTESTING
 ###
 
 intervalo = 15
-historico = valores_historicos(dias=(180), intervalo=str(str(intervalo)+'m'))
-adiciona_indicadores(historico, (24*4))
+historico = valores_historicos(dias=(180), intervalo=str(str(intervalo)+'m'), ticker='BTCUSDT')
+adiciona_indicadores(historico)
 historico = historico.dropna()
 historico = historico.reset_index()
 
-# ESTRATÉGIA 1: utilizando sinais apenas com a média curta
-# - Preço > média curta = sinal de compra
-# - Preço < média curta = sinal de venda
+
+# 6,78%
+teste_compra = []
+defasagem = 6  # cada unidade representa 15min, logo '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
+        if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
+                (historico.loc[idx-3, 'open'] > historico.loc[idx-2, 'open']) &
+                (historico.loc[idx-2, 'open'] > historico.loc[idx-1, 'open']) &
+                (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
+                (historico.loc[idx, 'mm672'] > historico.loc[idx, 'mm24'])):
+            teste_compra.append(False)
+        else:
+            if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
+                teste_compra.append(False)
+            else:
+                teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                    (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+    else:
+        if idx >= 2:
+            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+        else:
+            teste_compra.append(False)
+
+teste_venda = historico['open'] < historico['mm672']  # Filtro backtest venda
+
+ordens = 5
+thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
+
+backtest_summary(thiago, max_ordens=ordens, grafico=True)
 
 
-# ESTRATÉGIA 2: mesclando média média e média curta
-# - Preço > média média = sinal de compra
-# - Preço < média curta = sinal de venda
-
-
-# ESTRATÉGIA 2.1: mesclando média média e média curta.
-#                 Zerando a carteira quando vende.
-# - Preço > média média = sinal de compra
-# - Preço < média curta = sinal de venda
-
-
-# ESTRATÉGIA 3: mesclando média curta, longa e preço.
-# - Média curta > média longa = sinal de compra
-# - Preço < média longa = sinal de venda
-
-
-# ESTRATÉGIA 3b: mesclando média curta, longa e preço, mas ajustando
-# os valores de referência da compra através de marcadores, para que
-# as vendas saiam com preço médio das compras
-# - Média curta > média longa = sinal de compra
-# - Preço < média longa = sinal de venda
-#       RESULTADO: 180 dias, estratégia -0,50%, ativo -15,20%
-teste_compra = historico['mm24'] > historico['mm672']  # Filtro backtest compra
+# 7,68%
+teste_compra = []
+defasagem = 6  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
+        if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
+                (historico.loc[idx-3, 'open'] > historico.loc[idx-2, 'open']) &
+                (historico.loc[idx-2, 'open'] > historico.loc[idx-1, 'open']) &
+                (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
+                (historico.loc[idx, 'mm672'] > historico.loc[idx, 'mm24'])):
+            teste_compra.append(False)
+        else:
+            if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
+                teste_compra.append(False)
+            else:
+                teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                    (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+    else:
+        if idx >= 2:
+            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+        else:
+            teste_compra.append(False)
 teste_venda = historico['close'] < historico['mm672']  # Filtro backtest venda
 
-backtest(historico, max_ordens=10, compra=teste_compra, venda=teste_venda, grafico=True)
+ordens = 5
+thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
 
-# ESTRATÉGIA 4: 3b + filtro por RSI
-#       RESULTADO: 180 dias, estratégia 2,94%, ativo -14,11%
-for id in historico.index:
-    historico.loc[id, 'rsi_min7d'] = historico['rsi'].loc[(id-(4*24*7)):id].min()
-    historico.loc[id, 'rsi_max7d'] = historico['rsi'].loc[(id-(4*24*7)):id].max()
-
-mask_compra = (historico['rsi'] < historico['rsi_min7d']) & \
-        (historico['mm24'] > historico['mm672'])
-mask_venda = (historico['rsi'] > historico['rsi_max7d']) & \
-        (historico['close'] < historico['mm672'])
-
-backtest(historico, max_ordens=5, compra=mas_compra, venda=mask_venda)
+backtest_summary(thiago, max_ordens=ordens, grafico=True)
 
 
-# ESTRATÉGIA 5: Sinal MACD (macd_s) > MACD (macd) OU macd_norm
-# Testar com e sem as médias móveis junto
-#       RESULTADO: 180 dias, estratégia 4,45%, ativo -14,11%
-for id in historico.index:
-    tempo = 2
-    if id < (tempo + 1):
-        historico.loc[id, 'close_lagged'] = 1
-    elif historico.loc[(id - tempo), 'close'] < historico.loc[id, 'close']:
-        historico.loc[id, 'close_lagged'] = 1
+# 6,44%
+teste_compra = []
+defasagem = 24  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
+        if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
+                (historico.loc[idx-3, 'open'] > historico.loc[idx-2, 'open']) &
+                (historico.loc[idx-2, 'open'] > historico.loc[idx-1, 'open']) &
+                (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
+                (historico.loc[idx, 'mm672'] > historico.loc[idx, 'mm24'])):
+            teste_compra.append(False)
+        else:
+            if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
+                teste_compra.append(False)
+            else:
+                teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                    (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
     else:
-        historico.loc[id, 'close_lagged'] = 0
+        if idx >= 2:
+            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+        else:
+            teste_compra.append(False)
+teste_venda = historico['close'] < historico['mm672']  # Filtro backtest venda
 
-mask_compra = (historico['macd_s'] > historico['macd']) &\
-                  (historico['close'] > historico['mm672']) &\
-                  (historico.rsi < historico.rsi_min7d)  # Filtro backtest compra
-mask_venda = (historico.close < historico.mm672)
+ordens = 5
+thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
 
-
-mask_compra.sum()
-mask_venda.sum()
-
-
-backtest(historico)
-
-
-
-# - ROC: linha central em 0, preço subindo ROC > 0, preço caindo ROC < 0
-#        de repente usar min() para entrada e max() para saída, algo nesse sentido
-# - MACD: indicador de momento. Normalmente se utiliza como referência o
-#         cruzamento MACD x Sinal MACD para entradas e saídas
-# - RSI: varia de 0 a 100, RSI < 30 indica sobrevenda (então, entrada) e
-#        RSI > 70 indica sobrecompra (então, saída)
-# - ATR: deve ser comparado a ele mesmo defasado. Indica volatilidade, mas
-#        não apresenta sinais de entrada/saída por si só. Vale a pena
-#        observar comportamento no gráfico e decidir uma melhor estratégia
+# 6,39%
+teste_compra = []
+for idx in historico.index:
+    if idx >= 3:
+        if ((historico.loc[idx-3, 'close'] > historico.loc[idx-2, 'close']) &
+                (historico.loc[idx-2, 'close'] > historico.loc[idx-1, 'close']) &
+                (historico.loc[idx-1, 'close'] > historico.loc[idx, 'close'])):
+            teste_compra.append(False)
+        else:
+            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+    else:
+        teste_compra.append(False)
+teste_venda = historico['close'] < historico['mm672']
 
 
 # Gráfico das médias móveis
-plt.plot(periodo.set_index(keys='timestamp')['mm672'], color='green', label='Média Móvel Longa (1 semana)')
-plt.plot(periodo.set_index(keys='timestamp')['mm192'], color='blue', label='Média Móvel Média (2 dias)')
-plt.plot(periodo.set_index(keys='timestamp')['mm24'], color='red', label='Média Móvel Curta (6 horas)')
-plt.plot(periodo.set_index(keys='timestamp')['close'], color='gray', label='Preço de fechamento do ativo')
+plt.plot(historico.set_index(keys='timestamp')['mm672'], color='green', label='Média Móvel Longa (1 semana)')
+plt.plot(historico.set_index(keys='timestamp')['mm192'], color='blue', label='Média Móvel Média (2 dias)')
+plt.plot(historico.set_index(keys='timestamp')['mm24'], color='red', label='Média Móvel Curta (6 horas)')
+plt.plot(historico.set_index(keys='timestamp')['close'], color='gray', label='Preço de fechamento do ativo')
 plt.xlabel("Tempo")
 plt.ylabel("Valor do ativo")
 plt.title('Gráfico do histórico do valor do ativo')
 plt.legend()
 plt.show()
-
-
-#
-periodo[['sinal_est', 'cv', 'marcador', 'saldo_inicial', 'saldo_final', 'saldo_cart']].tail(10)
-#
-historico.index[-1]
