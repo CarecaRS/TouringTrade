@@ -181,11 +181,11 @@ def adiciona_indicadores(df, periodo=20):
     print('       Média móvel longa (1 semana)')
     df['mm672'] = pandas_ta.sma(df['close'], length=672)
 # Supertrend (TENDENCIA)
-    print('       Supertrend')
-    df['supertrend'] = pandas_ta.supertrend(high=df['high'],
-                                            low=df['low'],
-                                            close=df['close'],
-                                            offset=1)['SUPERTd_7_3.0']
+    print('       Supertrend não realizado')
+#    df['supertrend'] = pandas_ta.supertrend(high=df['high'],
+#                                            low=df['low'],
+#                                            close=df['close'],
+#                                            offset=1)['SUPERTd_7_3.0']
 #
     print('Informações adicionadas ao dataframe com sucesso. Remover NaNs manualmente.')
 
@@ -193,10 +193,8 @@ def adiciona_indicadores(df, periodo=20):
 ###
 # BACKTEST
 ###
-def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=False):
+def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comissao = 0.001, grafico=False):
     # Definição inicial dos componentes utilizados em backtesting
-    tx_comissao = 0.001
-    saldo_inicial = saldo_inicial  # Define um saldo inicial hipotético, em R$
     marcador = 1
     carteira_full = max_ordens  # Máximo de ordens abertas ao mesmo tempo
     periodo = df.copy()
@@ -324,7 +322,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
             periodo.loc[idx, 'saldo_cart'] = 0
             periodo.loc[idx, 'marcador'] = marcador*-1
             periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-            print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Zerando posições em fim de período  ***')
+            print(f'Backtesting finalizado! ***  Zerando posições em fim de período  ***')
         else:
             pass
     periodo['rendimento'] = (periodo['patrimonio']/periodo['patrimonio'].iloc[0])-1
@@ -352,11 +350,157 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, grafico=F
     print(f'Valor máximo do ativo no período: R${periodo.close.max()}')
     print(f'Valor mínimo do ativo no período: R${periodo.close.min()}')
     if grafico == True:
-        plt.plot(periodo.set_index(keys='timestamp')['ativo_acum'], color='orange', label='Rendimento do Ativo')
-        plt.plot(periodo.set_index(keys='timestamp')['rendimento'], color='magenta', label='Rendimento da Estratégia')
+        # Criação das flags entrada/saída
+        periodo[['entrada', 'saida']] = 0
+        mask = periodo['marcador'] != 0
+        for i in periodo[mask]['marcador']:
+            if i > 0:
+                for idx1 in (periodo[periodo['marcador'] == i]).index:
+                    periodo.loc[idx1, 'entrada'] = 1
+            elif i < 0:
+                for idxm1 in (periodo[periodo['marcador'] == i]).index:
+                    periodo.loc[idxm1, 'saida'] = 1
+            else:
+                pass
+        # Gera os pontos do scatter
+        scatter_entrada = []
+        scatter_saida = []
+        for point in periodo[(periodo.entrada == 1)].index:
+            scatter_entrada.append(periodo.loc[point, ['timestamp', 'close']])
+        for point in periodo[(periodo.saida == 1)].index:
+            scatter_saida.append(periodo.loc[point, ['timestamp', 'close']])
+        # Cria os dois gráficos
+        plt.subplot(211)
+        plt.plot(periodo.set_index(keys='timestamp')['mm672'],
+                 color='green',
+                 label='MM Longa (1 semana)')
+        plt.plot(periodo.set_index(keys='timestamp')['mm192'],
+                 color='blue',
+                 label='MM Média (2 dias)')
+        plt.plot(periodo.set_index(keys='timestamp')['mm24'],
+                 color='red',
+                 label='MM Curta (6 horas)')
+        plt.plot(periodo.set_index(keys='timestamp')['close'],
+                 color='gray',
+                 label='Preço de fechamento do ativo')
+        plt.scatter(x=pd.DataFrame(scatter_entrada)['timestamp'],
+                    y=pd.DataFrame(scatter_entrada)['close'],
+                    color='green',
+                    marker='^',
+                    label='Ponto de entrada',
+                    zorder=10)
+        plt.scatter(x=pd.DataFrame(scatter_saida)['timestamp'],
+                    y=pd.DataFrame(scatter_saida)['close'],
+                    color='red',
+                    marker='v',
+                    label='Ponto de saída',
+                    zorder=10)
+        plt.xlabel("Tempo")
+        plt.ylabel("Valor do ativo")
+        plt.title('Gráfico do histórico do valor do ativo')
+        plt.legend()
+        plt.subplot(212)
+        plt.plot(periodo.set_index(keys='timestamp')['ativo_acum'],
+                 color='orange', label='Rendimento do Ativo',
+                 zorder=5)
+        plt.plot(periodo.set_index(keys='timestamp')['rendimento'],
+                 color='magenta', label='Rendimento da Estratégia',
+                 zorder=7)
         plt.xlabel("Tempo")
         plt.ylabel("Rentabilidade")
-        plt.title('Gráfico comparativo da rentabilidade\nAtivo x Estratégia')
+        plt.title('Gráfico comparativo da rentabilidade (Ativo x Estratégia)')
+        plt.legend()
+        plt.show()
+    elif grafico == False:
+        pass
+    else:
+        print('\n*Não foi possível desenhar o gráfico!*\nHiperparâmetro "grafico" deve ser True ou False, informado qualquer outra coisa.')
+    return periodo
+
+
+def backtest_summary(df, max_ordens=10, saldo_inicial=1000, grafico=False):
+    saldo_final = round(df['saldo_final'].iloc[-1], 2) + round(df['saldo_cart'].iloc[-1], 2)
+    saldo_maximo = round(df.patrimonio.max(), 2)
+    rend_est = round(((saldo_final-saldo_inicial)/saldo_inicial)*100, 2)
+    rend_at = round(((df.close.iloc[-1]/df.open.iloc[0])-1)*100, 2)
+    rend_relat = round(((rend_est/rend_at)-1)*100, 2)
+    print(f'\n\nSaldo inicial hipotético: R${saldo_inicial}')
+    print(f'Saldo final: R${saldo_final}')
+    print(f'Rendimento total da estratégia: {rend_est}%')
+    print(f'Rendimento total do ativo: {rend_at}%')
+    print(f'Beta do rendimento: {rend_relat}%')
+    if rend_at > rend_est:
+        print("\n\nRESULTADO: a estratégia NÃO SUPEROU o rendimento do ativo!")
+    else:
+        print("\n\nRESULTADO: Parabéns, a estratégia SUPEROU o rendimento do ativo!")
+    print('\n\n   Características da estratégia:')
+    print(f'Número de ordens simultâneas: {max_ordens}')
+    print(f'Número de trades de compra realizados: {df[df['cv'] == 1]['cv'].sum()}')
+    print(f'Número de trades de venda realizados: {abs(df[df['cv'] == -1]['cv'].sum())}')
+    print(f'Intervalo das observações: ' + str(intervalo) + 'm')
+    print(f'Patrimônio máximo no período: R${saldo_maximo}')
+    print(f'Valor máximo do ativo no período: R${df.close.max()}')
+    print(f'Valor mínimo do ativo no período: R${df.close.min()}')
+    if grafico == True:
+        # Criação das flags entrada/saída
+        df[['entrada', 'saida']] = 0
+        mask = df['marcador'] != 0
+        for i in df[mask]['marcador']:
+            if i > 0:
+                for idx1 in (df[df['marcador'] == i]).index:
+                    df.loc[idx1, 'entrada'] = 1
+            elif i < 0:
+                for idxm1 in (df[df['marcador'] == i]).index:
+                    df.loc[idxm1, 'saida'] = 1
+            else:
+                pass
+        # Gera os pontos do scatter
+        scatter_entrada = []
+        scatter_saida = []
+        for point in df[(df.entrada == 1)].index:
+            scatter_entrada.append(df.loc[point, ['timestamp', 'close']])
+        for point in df[(df.saida == 1)].index:
+            scatter_saida.append(df.loc[point, ['timestamp', 'close']])
+        # Cria os dois gráficos
+        plt.subplot(211)
+        plt.plot(df.set_index(keys='timestamp')['mm672'],
+                 color='green',
+                 label='MM Longa (1 semana)')
+        plt.plot(df.set_index(keys='timestamp')['mm192'],
+                 color='blue',
+                 label='MM Média (2 dias)')
+        plt.plot(df.set_index(keys='timestamp')['mm24'],
+                 color='red',
+                 label='MM Curta (6 horas)')
+        plt.plot(df.set_index(keys='timestamp')['close'],
+                 color='gray',
+                 label='Preço de fechamento do ativo')
+        plt.scatter(x=pd.DataFrame(scatter_entrada)['timestamp'],
+                    y=pd.DataFrame(scatter_entrada)['close'],
+                    color='green',
+                    marker='^',
+                    label='Ponto de entrada',
+                    zorder=10)
+        plt.scatter(x=pd.DataFrame(scatter_saida)['timestamp'],
+                    y=pd.DataFrame(scatter_saida)['close'],
+                    color='red',
+                    marker='v',
+                    label='Ponto de saída',
+                    zorder=10)
+        plt.xlabel("Tempo")
+        plt.ylabel("Valor do ativo")
+        plt.title('Gráfico do histórico do valor do ativo')
+        plt.legend()
+        plt.subplot(212)
+        plt.plot(df.set_index(keys='timestamp')['ativo_acum'],
+                 color='orange', label='Rendimento do Ativo',
+                 zorder=5)
+        plt.plot(df.set_index(keys='timestamp')['rendimento'],
+                 color='magenta', label='Rendimento da Estratégia',
+                 zorder=7)
+        plt.xlabel("Tempo")
+        plt.ylabel("Rentabilidade")
+        plt.title('Gráfico comparativo da rentabilidade (Ativo x Estratégia)')
         plt.legend()
         plt.show()
     elif grafico == False:
@@ -385,103 +529,577 @@ infos['uid']
 
 ###
 # BACKTESTING
+#
+# Ativos
+# BTCUSDT - bitcoin
+# ETHUSDT - ethereum
+# YFIUSDT - yearn.finance (?)
 ###
 
 intervalo = 15
-historico = valores_historicos(dias=(180), intervalo=str(str(intervalo)+'m'), ticker='BTCUSDT')
+historico = valores_historicos(dias=(180),
+                               intervalo=str(str(intervalo)+'m'),
+                               ticker='YFIUSDT')
 adiciona_indicadores(historico)
 historico = historico.dropna()
 historico = historico.reset_index()
 
-# ESTRATÉGIA 1: utilizando sinais apenas com a média curta
-# - Preço > média curta = sinal de compra
-# - Preço < média curta = sinal de venda
 
-
-# ESTRATÉGIA 2: mesclando média média e média curta
-# - Preço > média média = sinal de compra
-# - Preço < média curta = sinal de venda
-
-
-# ESTRATÉGIA 2.1: mesclando média média e média curta.
-#                 Zerando a carteira quando vende.
-# - Preço > média média = sinal de compra
-# - Preço < média curta = sinal de venda
-
-
-# ESTRATÉGIA 3: mesclando média curta, longa e preço.
-# - Média curta > média longa = sinal de compra
-# - Preço < média longa = sinal de venda
-
-
-# ESTRATÉGIA 3b: mesclando média curta, longa e preço, mas ajustando
-# os valores de referência da compra através de marcadores, para que
-# as vendas saiam com preço médio das compras
-# - Média curta > média longa = sinal de compra
-# - Preço < média longa = sinal de venda
-#       RESULTADO: 180 dias, estratégia -0,50%, ativo -15,20%
-teste_compra = historico['mm24'] > historico['mm672']  # Filtro backtest compra
-teste_venda = historico['close'] < historico['mm672']  # Filtro backtest venda
-
-backtest(historico, max_ordens=5, compra=teste_compra, venda=teste_venda)
-
-# ESTRATÉGIA 4: 3b + filtro por RSI
-#       RESULTADO: 180 dias, estratégia 2,94%, ativo -14,11%
-for id in historico.index:
-    historico.loc[id, 'rsi_min7d'] = historico['rsi'].loc[(id-(4*24*7)):id].min()
-    historico.loc[id, 'rsi_max7d'] = historico['rsi'].loc[(id-(4*24*7)):id].max()
-
-mask_compra = (historico['rsi'] < historico['rsi_min7d']) & \
-        (historico['mm24'] > historico['mm672'])
-mask_venda = (historico['rsi'] > historico['rsi_max7d']) & \
-        (historico['close'] < historico['mm672'])
-
-backtest(historico, max_ordens=10, compra=mas_compra, venda=mask_venda)
-
-
-# ESTRATÉGIA 5: Sinal MACD (macd_s) > MACD (macd) OU macd_norm
-# Testar com e sem as médias móveis junto
-#       RESULTADO: 180 dias, estratégia 4,45%, ativo -14,11%
-for id in historico.index:
-    tempo = 2
-    if id < (tempo + 1):
-        historico.loc[id, 'close_lagged'] = 1
-    elif historico.loc[(id - tempo), 'close'] < historico.loc[id, 'close']:
-        historico.loc[id, 'close_lagged'] = 1
+###
+# Estratégia 1 - Boa para ETH
+###
+# BACKTEST 365d:
+# 275,17% sobre BTC, com 3 ordens
+# 241,75% sobre ETH, com 3 ordens
+# 58,79% sobre YIF, com 3 ordens
+#
+# BACKTEST 180d:
+# 8,48% sobre BTC, com 3 ordens
+# 7,83% sobre ETH, com 3 ordens
+# -16,11%% sobre YIF, com 3 ordens
+##########################################################
+#                 Parâmetros de COMPRA:                  #
+# - Se o ativo estiver em queda na última hora, não      #
+#   libera a compra;                                     #
+# - Se o preço de fechamento em t-1 for menor que o      #
+#   mínimo dos últimos {defasagem} períodos, não libera  #
+#   a compra;                                            #
+# - Se a máxima atual for maior do que a máxima em t-2   #
+#   e se a MM curta estiver acima da alta, compra;       #
+# - Qualquer coisa diferente disso, não compra.          #
+##########################################################
+teste_compra = []
+teste_venda = []
+defasagem = 6  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
+        if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
+                (historico.loc[idx-3, 'open'] > historico.loc[idx-2, 'open']) &
+                (historico.loc[idx-2, 'open'] > historico.loc[idx-1, 'open']) &
+                (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
+                (historico.loc[idx, 'mm672'] > historico.loc[idx, 'mm24'])):
+            teste_compra.append(False)
+        else:
+            if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
+                teste_compra.append(False)
+            else:
+                teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                    (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
     else:
-        historico.loc[id, 'close_lagged'] = 0
+        if idx >= 2:
+            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+        else:
+            teste_compra.append(False)
+##########################################################
+#                  Parâmetros de VENDA:                  #
+# - 4 períodos consecutivos em queda;                    #
+# - Preço de abertura em t menor do que a MM Curta em    #
+#   t-1.                                                 #
+##########################################################
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora marca como venda
+        if ((historico.loc[idx-5, 'close'] > historico.loc[idx-4, 'close']) &
+                (historico.loc[idx-4, 'close'] > historico.loc[idx-3, 'close']) &
+                (historico.loc[idx-3, 'close'] > historico.loc[idx-2, 'close']) &
+                (historico.loc[idx-2, 'close'] > historico.loc[idx-1, 'close']) &
+                (historico.loc[idx, 'open'] > historico.loc[idx-1, 'mm24'])):
+            teste_venda.append(True)
+        elif (historico.loc[idx, 'mm192'] < historico.loc[idx-1, 'mm672']):
+            teste_venda.append(True)
+        else:
+            teste_venda.append(False)
+    elif idx < defasagem:
+        if idx < 1:
+            teste_venda.append(False)
+        elif (historico.loc[idx, 'mm192'] < historico.loc[idx-1, 'mm672']):
+            teste_venda.append(True)
+        else:
+            teste_venda.append(False)
+    else:
+        print('Algo de muito bizarro aconteceu, essa print não estava prevista!')
 
-mask_compra = (historico['macd_s'] > historico['macd']) &\
-                  (historico['close'] > historico['mm672']) &\
-                  (historico.rsi < historico.rsi_min7d)  # Filtro backtest compra
-mask_venda = (historico.close < historico.mm672)
 
+ordens = 3
+thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
 
-
-# - ROC: linha central em 0, preço subindo ROC > 0, preço caindo ROC < 0
-#        de repente usar min() para entrada e max() para saída, algo nesse sentido
-# - MACD: indicador de momento. Normalmente se utiliza como referência o
-#         cruzamento MACD x Sinal MACD para entradas e saídas
-# - RSI: varia de 0 a 100, RSI < 30 indica sobrevenda (então, entrada) e
-#        RSI > 70 indica sobrecompra (então, saída)
-# - ATR: deve ser comparado a ele mesmo defasado. Indica volatilidade, mas
-#        não apresenta sinais de entrada/saída por si só. Vale a pena
-#        observar comportamento no gráfico e decidir uma melhor estratégia
-
-
-# Gráfico das médias móveis
-plt.plot(periodo.set_index(keys='timestamp')['mm672'], color='green', label='Média Móvel Longa (1 semana)')
-plt.plot(periodo.set_index(keys='timestamp')['mm192'], color='blue', label='Média Móvel Média (2 dias)')
-plt.plot(periodo.set_index(keys='timestamp')['mm24'], color='red', label='Média Móvel Curta (6 horas)')
-plt.plot(periodo.set_index(keys='timestamp')['close'], color='gray', label='Preço de fechamento do ativo')
-plt.xlabel("Tempo")
-plt.ylabel("Valor do ativo")
-plt.title('Gráfico do histórico do valor do ativo')
-plt.legend()
-plt.show()
+backtest_summary(thiago, max_ordens=ordens, grafico=True)
 
 
 #
-periodo[['sinal_est', 'cv', 'marcador', 'saldo_inicial', 'saldo_final', 'saldo_cart']].tail(10)
 #
-historico.index[-1]
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+###
+# Estratégia 2 - Perfeita para Bitcoin
+###
+# BACKTEST 365d:
+# 576,10% em BTC, com 3 ordens
+# 237,24% em ETH, com 3 ordens
+# 42,89% em YIF, com 3 ordens
+#
+# BACKTEST 180d:
+# 23,15% sobre BTC, com 3 ordens
+# 7,83% sobre ETH, com 3 ordens
+# -40,28% em YIF
+##########################################################
+#                 Parâmetros de COMPRA:                  #
+# - Se o ativo estiver em queda na última hora, não      #
+#   libera a compra;                                     #
+# - Se o preço de fechamento em t-1 for menor que o      #
+#   mínimo dos últimos {defasagem} períodos, não libera  #
+#   a compra;                                            #
+# - Se a máxima atual for maior do que a máxima em t-2   #
+#   e se a MM curta estiver acima da alta, compra;       #
+# - Qualquer coisa diferente disso, não compra.          #
+##########################################################
+teste_compra = []
+teste_venda = []
+defasagem = 6  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
+        if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
+                (historico.loc[idx-3, 'open'] > historico.loc[idx-2, 'open']) &
+                (historico.loc[idx-2, 'open'] > historico.loc[idx-1, 'open']) &
+                (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
+                (historico.loc[idx, 'mm672'] > historico.loc[idx, 'mm24'])):
+            teste_compra.append(False)
+        else:
+            if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
+                teste_compra.append(False)
+            else:
+                teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                    (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+    else:
+        if idx >= 2:
+            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+        else:
+            teste_compra.append(False)
+##########################################################
+#                  Parâmetros de VENDA:                  #
+# - 4 períodos consecutivos em queda;                    #
+# - Preço de abertura em t menor do que a MM Curta em    #
+#   t-1.                                                 #
+##########################################################
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora marca como venda
+        if ((historico.loc[idx-5, 'close'] > historico.loc[idx-4, 'close']) &
+                (historico.loc[idx-4, 'close'] > historico.loc[idx-3, 'close']) &
+                (historico.loc[idx-3, 'close'] > historico.loc[idx-2, 'close']) &
+                (historico.loc[idx-2, 'close'] > historico.loc[idx-1, 'close']) &
+                (historico.loc[idx, 'open'] > historico.loc[idx-1, 'mm24'])):
+            teste_venda.append(True)
+        else:
+            teste_venda.append(False)
+    elif idx < defasagem:
+        if idx < 1:
+            teste_venda.append(False)
+        elif historico.loc[idx, 'open'] < historico.loc[idx-1, 'mm24']:
+            teste_venda.append(True)
+        else:
+            teste_venda.append(False)
+    else:
+        print('Algo de muito bizarro aconteceu, essa print não estava prevista!')
+
+
+ordens = 3
+thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
+
+backtest_summary(thiago, max_ordens=ordens, grafico=True)
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+# 23,01% sobre BTC em 180d, com 3 ordens
+##########################################################
+#                 Parâmetros de COMPRA:                  #
+# - Se o ativo estiver em queda na última hora, não      #
+#   libera a compra;                                     #
+# - Se o preço de fechamento em t-1 for menor que o      #
+#   mínimo dos últimos {defasagem} períodos, não libera  #
+#   a compra;                                            #
+# - Se a máxima atual for maior do que a máxima em t-2   #
+#   e se a MM curta estiver acima da alta, compra;       #
+# - Qualquer coisa diferente disso, não compra.          #
+##########################################################
+teste_compra = []
+teste_venda = []
+defasagem = 6  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
+        if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
+                (historico.loc[idx-3, 'open'] > historico.loc[idx-2, 'open']) &
+                (historico.loc[idx-2, 'open'] > historico.loc[idx-1, 'open']) &
+                (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
+                (historico.loc[idx, 'mm672'] > historico.loc[idx, 'mm24'])):
+            teste_compra.append(False)
+        else:
+            if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
+                teste_compra.append(False)
+            else:
+                teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                    (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+    else:
+        if idx >= 2:
+            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+        else:
+            teste_compra.append(False)
+##########################################################
+#                  Parâmetros de VENDA:                  #
+# - 4 períodos consecutivos em queda;                    #
+# - Preço de abertura em t menor do que a MM Curta em    #
+#   t-1.                                                 #
+##########################################################
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora marca como venda
+        if ((historico.loc[idx-5, 'close'] > historico.loc[idx-4, 'close']) &
+                (historico.loc[idx-4, 'close'] > historico.loc[idx-3, 'close']) &
+                (historico.loc[idx-3, 'close'] > historico.loc[idx-2, 'close']) &
+                (historico.loc[idx-2, 'close'] > historico.loc[idx-1, 'close']) &
+                (historico.loc[idx, 'open'] > historico.loc[idx-1, 'mm24'])):
+            teste_venda.append(True)
+        else:
+            teste_venda.append(False)
+    elif idx < defasagem:
+        if idx < 1:
+            teste_venda.append(False)
+        elif historico.loc[idx, 'open'] < historico.loc[idx-1, 'mm24']:
+            teste_venda.append(True)
+        else:
+            teste_venda.append(False)
+    else:
+        print('Algo de muito bizarro aconteceu, essa print não estava prevista!')
+
+
+ordens = 3
+thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
+
+backtest_summary(thiago, max_ordens=ordens, grafico=True)
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+# 17,59% sobre BTC em 180d, com 4 ordens
+##########################################################
+#                 Parâmetros de COMPRA:                  #
+# - Se o ativo estiver em queda na última hora, não      #
+#   libera a compra;                                     #
+# - Se o preço de fechamento em t-1 for menor que o      #
+#   mínimo dos últimos {defasagem} períodos, não libera  #
+#   a compra;                                            #
+# - Se a máxima atual for maior do que a máxima em t-2   #
+#   e se a MM curta estiver acima da alta, compra;       #
+# - Qualquer coisa diferente disso, não compra.          #
+##########################################################
+teste_compra = []
+teste_venda = []
+defasagem = 6  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
+        if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
+                (historico.loc[idx-3, 'open'] > historico.loc[idx-2, 'open']) &
+                (historico.loc[idx-2, 'open'] > historico.loc[idx-1, 'open']) &
+                (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
+                (historico.loc[idx, 'mm672'] > historico.loc[idx, 'mm24'])):
+            teste_compra.append(False)
+        else:
+            if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
+                teste_compra.append(False)
+            else:
+                teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                    (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+    else:
+        if idx >= 2:
+            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+        else:
+            teste_compra.append(False)
+##########################################################
+#                  Parâmetros de VENDA:                  #
+# - 4 períodos consecutivos em queda;                    #
+# - Preço de abertura em t menor do que a MM Curta em    #
+#   t-1.                                                 #
+##########################################################
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora marca como venda
+        if ((historico.loc[idx-5, 'close'] > historico.loc[idx-4, 'close']) &
+                (historico.loc[idx-4, 'close'] > historico.loc[idx-3, 'close']) &
+                (historico.loc[idx-3, 'close'] > historico.loc[idx-2, 'close']) &
+                (historico.loc[idx-2, 'close'] > historico.loc[idx-1, 'close']) &
+                (historico.loc[idx, 'open'] > historico.loc[idx-1, 'mm24'])):
+            teste_venda.append(True)
+        else:
+            teste_venda.append(False)
+    elif idx < defasagem:
+        if idx < 1:
+            teste_venda.append(False)
+        elif historico.loc[idx, 'open'] < historico.loc[idx-1, 'mm24']:
+            teste_venda.append(True)
+        else:
+            teste_venda.append(False)
+    else:
+        print('Algo de muito bizarro aconteceu, essa print não estava prevista!')
+
+
+ordens = 4
+thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
+
+backtest_summary(thiago, max_ordens=ordens, grafico=True)
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+# 16,65% sobre BTC em 180d, com 4 ordens
+##########################################################
+#                 Parâmetros de COMPRA:                  #
+# - Se o ativo estiver em queda na última hora, não      #
+#   libera a compra;                                     #
+# - Se o preço de fechamento em t-1 for menor que o      #
+#   mínimo dos últimos {defasagem} períodos, não libera  #
+#   a compra;                                            #
+# - Se a máxima atual for maior do que a máxima em t-2   #
+#   e se a MM curta estiver acima da alta, compra;       #
+# - Qualquer coisa diferente disso, não compra.          #
+##########################################################
+teste_compra = []
+teste_venda = []
+defasagem = 6  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
+        if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
+                (historico.loc[idx-3, 'open'] > historico.loc[idx-2, 'open']) &
+                (historico.loc[idx-2, 'open'] > historico.loc[idx-1, 'open']) &
+                (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
+                (historico.loc[idx, 'mm672'] > historico.loc[idx, 'mm24'])):
+            teste_compra.append(False)
+        else:
+            if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
+                teste_compra.append(False)
+            else:
+                teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                    (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+    else:
+        if idx >= 2:
+            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+        else:
+            teste_compra.append(False)
+##########################################################
+#                  Parâmetros de VENDA:                  #
+# - 4 períodos consecutivos em queda;                    #
+# - Preço de abertura em t menor do que a MM Curta em    #
+#   t-1.                                                 #
+##########################################################
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora marca como venda
+        if ((historico.loc[idx-4, 'close'] > historico.loc[idx-3, 'close']) &
+                (historico.loc[idx-3, 'close'] > historico.loc[idx-2, 'close']) &
+                (historico.loc[idx-2, 'close'] > historico.loc[idx-1, 'close']) &
+                (historico.loc[idx-1, 'close'] > historico.loc[idx, 'close']) &
+                (historico.loc[idx, 'close'] > historico.loc[idx, 'mm24'])):
+            teste_venda.append(True)
+        else:
+            teste_venda.append(False)
+    elif idx < defasagem:
+        if idx < 1:
+            teste_venda.append(False)
+        elif historico.loc[idx, 'open'] < historico.loc[idx-1, 'mm24']:
+            teste_venda.append(True)
+        else:
+            teste_venda.append(False)
+    else:
+        print('Algo de muito bizarro aconteceu, essa print não estava prevista!')
+
+
+ordens = 4
+thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
+
+backtest_summary(thiago, max_ordens=ordens, grafico=True)
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+#
+#
+
+#
+#
+
+#
+#
+
+#
+#
+
+#
+#
+
+
+# 7,68% sobre BTC em 180d, com 5 ordens
+teste_compra = []
+defasagem = 6  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+for idx in historico.index:
+    if idx >= defasagem:
+        # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
+        if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
+                (historico.loc[idx-3, 'open'] > historico.loc[idx-2, 'open']) &
+                (historico.loc[idx-2, 'open'] > historico.loc[idx-1, 'open']) &
+                (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
+                (historico.loc[idx, 'mm672'] > historico.loc[idx, 'mm24'])):
+            teste_compra.append(False)
+        else:
+            if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
+                teste_compra.append(False)
+            else:
+                teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                    (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+    else:
+        if idx >= 2:
+            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                                (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
+        else:
+            teste_compra.append(False)
+teste_venda = historico['close'] < historico['mm672']*0.98  # Filtro backtest venda
+
+ordens = 5
+thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
+
+backtest_summary(thiago, max_ordens=ordens, grafico=True)
