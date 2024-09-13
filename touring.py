@@ -17,57 +17,12 @@ from keys import api_secret, api_key, email_sender, email_personal, email_pwd
 %autoindent OFF
 
 
-
-###
-# TO-DO
-# - Fazer um loop para que o sistema busque as informações históricas de
-#   toda a lista do touring_index
-# - Utilizar indicadores de volatilidade (verificar parâmetros) para
-#   sinais de compra e venda (subcomprado e supercomprado)
-# - Bolar algum jeito de verificar há quanto tempo está caindo, para
-#   evitar comprar em cenários de tendência primária de queda (de repente
-#   os próprios indicadores de volatilidade já suprem isso)
-# - Pega o histórico do desempenho de CDI e o IBOV para fins de comparação
-#   no último gráfico também.
-# - Fazer duas funções (para compra e para venda), também armazenar a
-#   carteira em um objeto separado (tipo portfolio), assim dá para agilizar
-#   o código (eu acho) e o controle das quantidades e preços médios deve
-#   ficar melhor
-# - De repente montar estratégia que a venda se dê por stpo loss (tipo mínima
-#   anterior ou algo assim) e também por stop gain (tipo X vezes a diferença
-#   entre as duas últimas máximas ou algo nesse sentido)
-
-###
-# JÁ FEITO
-#
-# - Pega a relação dos maiores market caps para negociação: coinmarketcap.com
-#   > o CoinMarketCap retorna apenas as 20 maiores moedas em volume de mercado
-#   > Não tem pq pegar mais moedas porque por enquanto não se trabalhará com
-#     cestas de ativos, apenas com C/V de ativo isolado
-# - Criadas funções carteira(), valores_historicos() e adiciona_indicadores()
-# - Criar marcadores para saber qual o valor de referência de cada compra.
-#   Pensei em uma coluna nova ('marcador' ou algo assim), registro-base é
-#   zero, na primeira compra já é passado para 1. Na venda, acontece a
-#   reversão do sinal e o marcador aumenta em uma unidade.
-
-###
-# IDEIA1: pelo menos cinco indicadores recebendo os dados/calculando
-# a cada tempo X.
-# - Quando pelo menos 4 indicadores derem sinal de compra,
-#   comprar (fatias de 20% por exemplo).
-# - Quando pelo menos 3 indicadores (2 para um viés mais conservador)
-#   derem sinal de venda, sair da posição.
-# - Necessário: saldo inicial (já calcula as fatias de compra), quantidade
-#   inicial do ativo, quantidade atual do ativo
-
-
 ###
 # OBTENÇÃO DOS TICKERS DO COINMARKETCAP (registro para quando for necessário)
 ###
 # coinmarketcap = pd.read_html('https://coinmarketcap.com/all/views/all/')[2]
 # coinmarketcap = coinmarketcap.iloc[:, : 10].dropna()
 # touring_index = list(coinmarketcap['Symbol'])  # tickers que poderão ser negociados
-
 
 ###
 # NOTIFICAÇÕES POR E-MAIL
@@ -172,8 +127,7 @@ def carteira_binance():
     black_list = ['NFT', 'SHIB', 'BTTC']  # blacklist de ativos
     mask = carteira[carteira['asset'].isin(black_list)].index  # registra o índice dos black
     carteira.drop(mask, axis=0, inplace=True)  # dropa ativos black
-    print('Carteira obtida com sucesso. Ativos atuais e quantidades:')
-    return carteira
+    return carteira, cliente, infos
 
 
 ###
@@ -609,6 +563,12 @@ def backtest_summary(df, max_ordens=10, saldo_inicial=1000, grafico=False):
 ####
 # VERIFICAÇÕES diversas na Binance, caso necessárias:
 ###
+carteira, cliente, infos = carteira_binance()
+
+carteira
+cliente
+infos
+
 # Verifica a tabela de comissões compra/venda
 infos['commissionRates']
 
@@ -622,6 +582,168 @@ infos['accountType']
 
 # Retorna o user ID na corretora
 infos['uid']
+
+
+###
+# Touring
+###
+carteira, cliente, infos = carteira_binance()
+
+conta_tipo = infos['accountType']
+user_uid = infos['uid']
+
+if infos['canTrade'] == False:
+    print('Usuário imposibilitado de negociar, verificar junto à Binance!')
+else:
+    pass
+
+
+conta_tipo
+user_uid
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
+
+
+#
+#
 
 
 ###
@@ -841,13 +963,4 @@ for idx in historico.index:
 
 ordens = 3
 thiago = backtest(historico, saldo_inicial=2000, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=False)
-
-historico
-
-thiago
-
-thiago.loc[3]
-
-email_relatorio(thiago)
-
-backtest_summary(thiago, max_ordens=ordens, grafico=True)
+#backtest_summary(thiago, max_ordens=ordens, grafico=True)
