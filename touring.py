@@ -69,10 +69,14 @@ from keys import api_secret, api_key, email_sender, email_personal, email_pwd
 # touring_index = list(coinmarketcap['Symbol'])  # tickers que poderão ser negociados
 
 
+###
+# NOTIFICAÇÕES POR E-MAIL
+###
+# Notificação de compra
 def email_compra(df):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    print('Preparando valores para envio da mensagem...')
+    print('Preparando valores para envio da mensagem de compra...')
     ativo = df.loc[idx, 'par']
     valor_ativo = df.loc[idx, 'open']
     valor_investido = df.loc[idx, 'saldo_cart'] - df.loc[idx-1, 'saldo_cart']
@@ -81,8 +85,8 @@ def email_compra(df):
     subject = 'Touring: compra realizada!'
     body = (f'Acabei de realizar uma ordem de compra!\n\n\
             Ativo negociado: {ativo[:3]}\n\
-            Valor do ativo: R${round(valor_ativo, 2)}\n\
-            Valor investido: R${round(valor_investido, 2)}\n\
+            Valor atual do ativo: R${round(valor_ativo, 2)}\n\
+            Valor atual investido: R${round(valor_investido, 2)}\n\
             Quantidade comprada: {round(qtde_comprada, 8)} {ativo[:3]}\n\n\
             Total investido atualmente: R${round(df.loc[idx, 'saldo_cart'], 2)}\n\
             Quantidade total de {ativo[:3]} em carteira: (algum fetch da Binance aqui)\n\
@@ -90,7 +94,7 @@ def email_compra(df):
             Pode ficar tranquilo que eu coordeno outras entradas e as saidas conforme meus parametros ;)\n\
             Ate mais!')
     message = (f'Subject: {subject}\n\n{body}')
-    print('Enviando e-mail agora.')
+    print('Enviando e-mail de compra agora.')
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.starttls()
         smtp.login(email_personal, email_pwd)
@@ -98,9 +102,37 @@ def email_compra(df):
     print('E-mail enviado com sucesso.')
 
 
-###
-# E-MAIL PERIÓDICO
-###
+# Notificação de venda
+def email_venda(df):
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    print('Preparando valores para envio da mensagem de venda...')
+    ativo = df.loc[idx, 'par']
+    valor_ativo = df.loc[idx, 'open']
+    valor_venda = abs(df.loc[idx, 'saldo_cart'] - df.loc[idx-1, 'saldo_cart'])
+    qtde_vendida = valor_venda/valor_ativo
+    patrimonio = df.loc[idx, 'patrimonio']
+    subject = 'Touring: venda realizada!'
+    body = (f'Acabei de realizar uma ordem de venda!\n\n\
+            Ativo negociado: {ativo[:3]}\n\
+            Valor do ativo: R${round(valor_ativo, 2)}\n\
+            Valor de venda: R${round(valor_venda, 2)}\n\
+            Quantidade vendida: {round(qtde_vendida, 8)} {ativo[:3]}\n\n\
+            Total que permanece investido agora: R${round(df.loc[idx, 'saldo_cart'], 2)}\n\
+            Quantidade total de {ativo[:3]} em carteira: (algum fetch da Binance aqui)\n\
+            Patrimonio atual (saldo+invest) calculado: R${round(patrimonio, 2)}\n\n\
+            Pode ficar tranquilo que eu coordeno outras saidas e as entradas conforme meus parametros ;)\n\
+            Ate mais!')
+    message = (f'Subject: {subject}\n\n{body}')
+    print('Enviando e-mail de venda agora.')
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(email_personal, email_pwd)
+        smtp.sendmail(email_sender, email_personal, message)
+    print('E-mail enviado com sucesso.')
+
+
+# Relatório semanal (precisa ajuste)
 def email_relatorio(df):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
@@ -347,6 +379,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                     periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
                     carteira_full += 1
                     print(f'Backtesting finalizado! ***  Zerando posições em fim de período  ***')
+                    email_venda(periodo)
                 else:
                     valor_medio = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].mean()
                     variacao = (periodo.loc[(idx + 1), 'close'] - valor_medio)/valor_medio
@@ -357,6 +390,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                     periodo.loc[idx, 'marcador'] = marcador*-1
                     periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
                     carteira_full += 1
+                    email_venda(periodo)
                     if carteira_full == max_ordens:
                         print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Todas posições zeradas!  ***')
                         marcador += 1
@@ -806,7 +840,7 @@ for idx in historico.index:
 
 
 ordens = 3
-thiago = backtest(historico, saldo_inicial=2000, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
+thiago = backtest(historico, saldo_inicial=2000, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=False)
 
 historico
 
