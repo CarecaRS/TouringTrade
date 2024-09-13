@@ -14,6 +14,7 @@ import smtplib
 # Importação da API da Binance e dados do e-mail
 # Isso tudo do arquivo local keys.py
 from keys import api_secret, api_key, email_sender, email_personal, email_pwd
+pd.options.display.float_format = '{:.8f}'.format
 %autoindent OFF
 
 
@@ -563,15 +564,6 @@ def backtest_summary(df, max_ordens=10, saldo_inicial=1000, grafico=False):
 ####
 # VERIFICAÇÕES diversas na Binance, caso necessárias:
 ###
-carteira, cliente, infos = carteira_binance()
-
-carteira
-cliente
-infos
-
-# Verifica a tabela de comissões compra/venda
-infos['commissionRates']
-
 # Verifica as autorizações do cliente (trade/saque/depósito)
 infos['canTrade']
 infos['canWithdraw']
@@ -589,14 +581,52 @@ infos['uid']
 ###
 carteira, cliente, infos = carteira_binance()
 
+tx_comissao = float(infos['commissionRates']['maker'])
 conta_tipo = infos['accountType']
 user_uid = infos['uid']
+ticker = 'BTCUSDT'
 
 if infos['canTrade'] == False:
     print('Usuário imposibilitado de negociar, verificar junto à Binance!')
 else:
     pass
 
+saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])
+saldo_usd
+
+saldo_btc = float(cliente.get_asset_balance(asset=ticker[:3])['free'])
+saldo_btc
+
+###
+# Criação de ordens efetivas
+###
+ordem_compra = client.order_market_buy(
+        symbol=ticker,
+        quantity=100)
+
+ordem_venda = client.order_market_sell(
+        symbol=ticker,
+        quantity=100)
+
+
+###
+# Criação de ordens de teste
+###
+order = client.create_test_order(
+    symbol=ticker,
+    side=SIDE_BUY,
+    type=ORDER_TYPE_LIMIT,
+    timeInForce=TIME_IN_FORCE_GTC,
+    quantity=100,
+    price='0.00001')
+
+
+preco_teste = float(cliente.get_avg_price(symbol=ticker)['price'])
+preco_teste
+
+
+# STATUS DO SISTEMA DA BINANCE - necessário para poder fazer as negociações ou esperar mais 15min
+cliente.get_system_status()['msg']
 
 conta_tipo
 user_uid
