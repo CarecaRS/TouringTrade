@@ -10,8 +10,13 @@ import json
 import time
 import pandas_ta
 from binance.client import Client
-from keys import api_secret, api_key  # Importa a api do arquivo local keys.py
+import smtplib
+# Importação da API da Binance e dados do e-mail
+# Isso tudo do arquivo local keys.py
+from keys import api_secret, api_key, email_sender, email_personal, email_pwd
 %autoindent OFF
+
+
 
 ###
 # TO-DO
@@ -62,6 +67,55 @@ from keys import api_secret, api_key  # Importa a api do arquivo local keys.py
 # coinmarketcap = pd.read_html('https://coinmarketcap.com/all/views/all/')[2]
 # coinmarketcap = coinmarketcap.iloc[:, : 10].dropna()
 # touring_index = list(coinmarketcap['Symbol'])  # tickers que poderão ser negociados
+
+
+def email_compra(df):
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    subject = 'Touring: compra realizada!'
+    valor_ativo = df.loc[df.shape[0]-1]['open']
+    valor_investido = df.loc[df.shape[0]-1]['VALORINVESTIDO']
+    qtde_comprada = df.loc[df.shape[0]-1]['VALORINVESTIDO']/valor_ativo
+    print('Preparando valores para envio da mensagem...')
+    body = (f'Acabei de realizar uma ordem de compra!\n\n\
+            Ativo negociado: {df.loc[df.shape[0]-1]['par']}\n\
+            Valor do ativo:{valor_ativo}\n\
+            Valor investido:{valor_investido}\n\
+            Quantidade comprada:{qtde_comprada}\n\n\
+            Pode ficar tranquilo que eu coordeno outras entradas e as saídas conforme meus parâmetros ;)\n\
+            Até mais!')
+    message = (f'Subject: {subject}\n\n{body}')
+    print('Enviando e-mail agora.')
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(email_personal, email_pwd)
+        smtp.sendmail(email_sender, email_personal, message)
+    print('E-mail enviado com sucesso.')
+
+
+###
+# E-MAIL PERIÓDICO
+###
+def email_relatorio(df):
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    subject = 'Oi chefe, aqui eh o Touring'
+    print('Preparando valores para envio da mensagem...')
+    body = (f'Aqui eu trago seu resumo semanal de desempenho!\n\n\
+            Patrimonio total hoje: R${round(df.loc[df.shape[0]-1]['patrimonio'], 2)}\n\
+            Ativo negociado: {df.loc[df.shape[0]-1]['par']}\n\
+            Rendimento da estrategia: {round(df.loc[df.shape[0]-1]['rendimento']*100, 4)}%\n\
+            Oscilacao do ativo: {round(df.loc[df.shape[0]-1]['ativo_acum']*100, 4)}%\n\
+            Quantidade de trades de referencia: {abs(df.loc[df.shape[0]-1]['marcador'])}\n\n\
+            Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
+    message = (f'Subject: {subject}\n\n{body}')
+    print('Enviando e-mail agora.')
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(email_personal, email_pwd)
+        smtp.sendmail(email_sender, email_personal, message)
+    print('E-mail enviado com sucesso.')
+
 
 ###
 # ACESSO AO SISTEMA DA BINANCE
@@ -125,20 +179,23 @@ def valores_historicos(ticker='BTCUSDT', dias=30, intervalo='15m'):
     print('Informações obtidas com sucesso. Configurando os dados do dataframe...')
     # Cria um dataframe com OHLC e horários
     # Sobre as posições de kline[n]: https://developers.binance.com/docs/derivatives/coin-margined-futures/market-data/Kline-Candlestick-Data
-    loose_data = [[float(kline[1]), float(kline[2]), float(kline[3]), float(kline[4]), float(kline[5]), float(kline[7]), float(kline[8])] for kline in dados]
-    historico = pd.DataFrame(loose_data, columns=['open', 'high', 'low', 'close', 'volume_ativo', 'volume_financeiro', 'qtde_negocios'])
+#    loose_data = [[float(kline[1]), float(kline[2]), float(kline[3]), float(kline[4]), float(kline[5]), float(kline[7]), float(kline[8])] for kline in dados]
+#    historico = pd.DataFrame(loose_data, columns=['open', 'high', 'low', 'close', 'volume_ativo', 'volume_financeiro', 'qtde_negocios'])
+    loose_data = [[float(kline[1]), float(kline[2]), float(kline[3]), float(kline[4])] for kline in dados]
+    historico = pd.DataFrame(loose_data, columns=['open', 'high', 'low', 'close'])
     timestamps = [datetime.datetime.fromtimestamp(int(kline[0])/1000) for kline in dados]
     historico['timestamp'] = timestamps
     historico.set_index('timestamp', inplace=True)
     historico['par'] = tickers
-    print('Reduzindo magnitude do volume financeiro')
-    historico['volume_financeiro'] = historico['volume_financeiro']/1e6
+#    print('Reduzindo magnitude do volume financeiro')
+#    historico['volume_financeiro'] = historico['volume_financeiro']/1e6
     print('Requisição do histórico concluída.')
     return historico
 
 
+'''
 ###
-# CÁLCULO DOS INDICADORES
+# CÁLCULO DOS INDICADORES (antigo, desconsiderar)
 ###
 def adiciona_indicadores(df, periodo=20):
 # Garman-Klass Volatility (VOLATILIDADE)
@@ -182,6 +239,59 @@ def adiciona_indicadores(df, periodo=20):
     df['mm672'] = pandas_ta.sma(df['close'], length=672)
 # Supertrend (TENDENCIA)
     print('       Supertrend não realizado')
+#    df['supertrend'] = pandas_ta.supertrend(high=df['high'],
+#                                            low=df['low'],
+#                                            close=df['close'],
+#                                            offset=1)['SUPERTd_7_3.0']
+#
+    print('Informações adicionadas ao dataframe com sucesso. Remover NaNs manualmente.')
+'''
+
+###
+# CÁLCULO DOS INDICADORES UTILIZADOS
+###
+def adiciona_indicadores(df, periodo=20):
+# Garman-Klass Volatility (VOLATILIDADE)
+    print('Calculando indicadores de VOLATILIDADE:')
+    print('       Volatilidade de Garman-Klass não calculada')
+#    df['garman_klauss_vol'] = (((np.log(df['high']) - np.log(df['low']))**2)/2) - (2*np.log(2)-1) * ((np.log(df['close']) - np.log(df['open']))**2)
+# Bollinger Bands (VOLATILIDADE)
+    print('       Bandas de Bollinger não calculadas')
+#    df['bb_low'] = pandas_ta.bbands(close=np.log1p(df['close']),
+#                                    length=periodo).iloc[:, 0]
+#    df['bb_mid'] = pandas_ta.bbands(close=np.log1p(df['close']),
+#                                    length=periodo).iloc[:, 1]
+#    df['bb_high'] = pandas_ta.bbands(close=np.log1p(df['close']),
+#                                     length=periodo).iloc[:, 2]
+# Average True Range (ATR) (VOLATILIDADE)
+    print('       Average True Range (ATR) não calculada')
+#    atr = pandas_ta.atr(high=df['high'], low=df['low'],
+#                        close=df['close'], length=periodo)
+#    df['atr'] = atr.sub(atr.mean()).div(atr.std())
+# ROC (VOLATILIDADE)
+    print('       ROC não calculado')
+#    df['roc'] = pandas_ta.roc(df['close'], length=periodo)
+# RSI (TENDENCIA)
+    print('Calculando indicadores de TENDENCIA:')
+    print('       RSI não calculado')
+#    df['rsi'] = pandas_ta.rsi(close=df['close'], length=periodo)
+# MACD (TENDENCIA)
+    print('       MACD (original, normalizado e sinal) não calculada')
+#    macd = pandas_ta.macd(close=df['close'], length=periodo).iloc[:, 0]
+#    df['macd'] = pandas_ta.macd(close=df['close'], length=periodo).iloc[:, 0]
+#    df['macd_norm'] = macd.sub(macd.mean()).div(macd.std())
+#    df['macd_s'] = pandas_ta.macd(close=df['close'], length=periodo).iloc[:, 2]
+# Média Móvel curta (24 - 6 horas) (TENDENCIA)
+    print('       Média móvel curta (6 horas)')
+    df['mm24'] = pandas_ta.sma(df['close'], length=24)
+# Média Móvel média (192 - 2 dias) (TENDENCIA)
+    print('       Média móvel média (2 dias)')
+    df['mm192'] = pandas_ta.sma(df['close'], length=192)
+# Média Móvel longa (672 - 7 dias) (TENDENCIA)
+    print('       Média móvel longa (1 semana)')
+    df['mm672'] = pandas_ta.sma(df['close'], length=672)
+# Supertrend (TENDENCIA)
+    print('       Supertrend não calculado')
 #    df['supertrend'] = pandas_ta.supertrend(high=df['high'],
 #                                            low=df['low'],
 #                                            close=df['close'],
@@ -530,16 +640,23 @@ infos['uid']
 ###
 # BACKTESTING
 #
-# Ativos
+# Ativos de maior valor unitário Binance
 # BTCUSDT - bitcoin
 # ETHUSDT - ethereum
 # YFIUSDT - yearn.finance (?)
+#
+# Ativos de maior valor unitário CoinMarketCap
+# Bitcoin (BTC)
+# Tether Gold (XAUt)
+# Ethereum (ETH)
+# Maker (MKR)
+# BNB (BNB)
 ###
 
 intervalo = 15
-historico = valores_historicos(dias=(180),
+historico = valores_historicos(dias=(30),
                                intervalo=str(str(intervalo)+'m'),
-                               ticker='YFIUSDT')
+                               ticker='BTCUSDT')
 adiciona_indicadores(historico)
 historico = historico.dropna()
 historico = historico.reset_index()
@@ -735,7 +852,13 @@ for idx in historico.index:
 
 
 ordens = 3
-thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
+thiago = backtest(historico, saldo_inicial=2000, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
+
+thiago
+
+thiago.loc[3]
+
+email_relatorio(thiago)
 
 backtest_summary(thiago, max_ordens=ordens, grafico=True)
 
