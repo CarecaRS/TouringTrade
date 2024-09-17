@@ -376,7 +376,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
         if historico.loc[(historico.shape[0]-1), 'sinal_est'] == 0:  # Sinal de Compra da estratégia
             if carteira_full == 0:  # SE CARTEIRA SEM GRANA NÃO TEM COMO COMPRAR
                 pass
-            else:
+            elif historico.loc[(historico.shape[0]-1), 'sinal_est'] == 1:  # Sinal de Compra da estratégia
                 ordem_compra(ticker=ticker, quantity=qtde)
                 cv = 'compra'
                 status = 1
@@ -398,6 +398,8 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                              fatia=fatia)
                 print(f'\n   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
                 pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
+            else:
+                pass
         # PROCESSAMENTO DE VENDAS
         elif historico.loc[(historico.shape[0]-1), 'sinal_est'] == -1:  # Sinal de Venda da estratégia
             if carteira_full == max_ordens:  # SE CARTEIRA 100% CHEIA DE GRANA, NÃO TEM O QUE VENDER
@@ -452,11 +454,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                 email_relatorio(temp=ledger_temp, patrimonio=patrimonio)
             else:
                 pass
-        # Daqui para baixo não precisa mais, só mantar o time.sleep(60*15)
-#        teste += 6
         time.sleep(60*15)  # Medida em segundos
-#        if teste >= 720:
-#            break
     else:
         print('\n\n!!!! **** ATENÇÃO **** !!!!\n')
         print('!!!! BINANCE FORA DO AR !!!!\n')
