@@ -97,6 +97,34 @@ def email_venda_zerado(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, 
     print('E-mail enviado com sucesso.')
 
 
+# Relatório semanal
+def email_relatorio(temp=None, patrimonio=None):
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    subject = 'Oi chefe, aqui eh o Touring! Estou trazendo teu relatorio semanal :D'
+    print('Preparando valores para envio da mensagem...')
+    semana = temp['Semana'].max()-1
+    mask = temp['Semana'] == semana
+    var_estrategia = (temp.loc[mask, 'PatrimonioTotal'][0]/temp.loc[mask, 'PatrimonioTotal'].iloc[-1])-1
+    var_ativo = (temp.loc[mask, 'ValorUnitario'][0]/temp.loc[mask, 'ValorUnitario'].iloc[-1])-1
+    mask_compra = temp.loc[mask, 'CV'] == 'compra'
+    mask_venda = temp.loc[mask, 'CV'] == 'venda'
+    body = (f'Aqui eu trago seu resumo semanal de desempenho!\n\n\
+            Patrimonio total hoje: US${round(patrimonio, 2)}\n\n\
+            Ativo negociado: {ticker[:3]}\n\
+            Rendimento da estrategia: {round(var_estrategia*100, 4)}%\n\
+            Oscilacao do ativo: {round(var_ativo*100, 4)}%\n\
+            Quantidade de trades de referencia: {len(temp.loc[mask_compra])} COMPRAS e {len(temp.loc[mask_venda])} VENDAS.\n\n\
+            Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
+    message = (f'Subject: {subject}\n\n{body}')
+    print('Enviando e-mail agora.')
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(email_personal, email_pwd)
+        smtp.sendmail(email_sender, email_personal, message)
+    print('E-mail enviado com sucesso.')
+
+
 ###
 # ACESSO AO SISTEMA DA BINANCE
 ###
@@ -290,8 +318,14 @@ def estrategia_bitcoin(df=None, defasagem=6):
 # TOURING
 ###
 def touring(max_ordens=3, compra=None, venda=None, ticker=None):
+    try:
+        ledger = pd.read_csv('livro_contabil.csv')
+        ledger = ledger.to_dict(orient='records')
+    except:
+        ledger = []
     teste = 0
     status = 0
+    marcador = 1
     while cliente.get_system_status()['msg'] == 'normal':
         # faz verificação do sinal da Binance, se não estiver normal retorna erro (depois do 'else' lá embaixo)
         print('Binance online.\n')
@@ -307,7 +341,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
         preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
         patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
         saldos_iniciais = {'USD': saldo_usd, 'BTC': saldo_ticker, 'PatrimonioUSD': patrimonio}
-        saldoBTCemUSD = saldos_iniciais['BTC']*preco_ticker
+        saldoBTCemUSD = saldo_ticker*preco_ticker
         filtros_btc = cliente.get_symbol_info(ticker)['filters']
         step_btc = float(filtros_btc[1]['minQty'])
         fatia = saldos_iniciais['PatrimonioUSD']/max_ordens
@@ -319,10 +353,11 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
         # de compra. Se a carteira estiver cheia novamente, refaz o
         # valor das fatias
         if carteira_full == 0:
-            print(f'Sem recursos para comprar mais nada')
+            print(f'\n   --> Sem recursos para comprar mais nada\n')
             pass
         elif carteira_full == max_ordens:
             fatia = saldos_iniciais['USD']/carteira_full
+            marcador += 1
         else:
             pass
         # PROCESSAMENTO DE COMPRAS
@@ -330,10 +365,20 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             if carteira_full == 0:  # SE CARTEIRA SEM GRANA NÃO TEM COMO COMPRAR
                 pass
             else:
-                ordem_compra(ticker=ticker, quantity=qtde)
+#                ordem_compra(ticker=ticker, quantity=qtde)
                 # registro de informações para controle semanal seria interessante,
                 # mas o próprio app da Binance já fornece essas informações diversas
+                cv = 'compra'
                 status = 1
+                ledger.append({'Data': datetime.datetime.now(),
+                               'Semana': datetime.datetime.now().isocalendar()[1],
+                               'Ativo': ticker[:3],
+                               'CV': cv,
+                               'Marcador': marcador,
+                               'ValorUnitario': round(preco_ticker, 2),
+                               'Quantia': '{:.5f}'.format(qtde),
+                               'ValorNegociado': round(fatia, 2),
+                               'PatrimonioTotal': round(patrimonio, 2)})
                 email_compra(saldos_iniciais=saldos_iniciais,
                              saldo_usd=saldo_usd,
                              saldo_ticker=saldo_ticker,
@@ -341,17 +386,28 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                              patrimonio=patrimonio,
                              qtde=qtde,
                              fatia=fatia)
-                print(f'\nCompra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
+                print(f'\n   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
+                pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
         # PROCESSAMENTO DE VENDAS
         elif historico.loc[(historico.shape[0]-1), 'sinal_est'] == -1:  # Sinal de Venda da estratégia
             if carteira_full == max_ordens:  # SE CARTEIRA 100% CHEIA DE GRANA, NÃO TEM O QUE VENDER
                 pass
             else:
-                ordem_venda(ticker=ticker, quantity=qtde)
+#                ordem_venda(ticker=ticker, quantity=qtde)
                 # registro de informações para controle semanal seria interessante,
                 # mas o próprio app da Binance já fornece essas informações diversas
-                print(f'\nVenda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.')
+                cv = 'venda'
+                print(f'\n   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.')
                 carteira_full += 1
+                ledger.append({'Data': datetime.datetime.now(),
+                               'Semana': datetime.datetime.now().isocalendar()[1],
+                               'Ativo': ticker[:3],
+                               'CV': cv,
+                               'Marcador': marcador,
+                               'ValorUnitario': round(preco_ticker, 2),
+                               'Quantia': '{:.5f}'.format(qtde),
+                               'ValorNegociado': round(fatia, 2),
+                               'PatrimonioTotal': round(patrimonio, 2)})
                 if carteira_full == max_ordens:
                     email_venda(saldos_iniciais=saldos_iniciais,
                                 saldo_usd=saldo_usd,
@@ -361,7 +417,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                 qtde=qtde,
                                 fatia=fatia)
                 else:
-                    print('\n\n***  Todas posições zeradas!  ***')
+                    print('\n\n   --> ***  Todas posições zeradas!  ***')
                     # O email não muda praticamente nada, só a informação de ativo zerado
                     email_venda_zerado(saldos_iniciais=saldos_iniciais,
                                        saldo_usd=saldo_usd,
@@ -371,13 +427,23 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                        qtde=qtde,
                                        fatia=fatia)
                 status = -1
+                pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
         else:
             pass
         # PROCESSAMENTO DE MOMENTOS SEM NEGOCIAÇÃO
         if status == 0:
-            print('Sem movimentações por enquanto.')
+            print('\n   --> Sem movimentações por enquanto.\n')
         else:
             pass
+        # ENVIO DO RELATÓRIO SEMANAL, SE MUDOU A SEMANA
+        ledger_temp = pd.DataFrame(ledger)
+        if len(ledger_temp) <= 2:
+            pass
+        else:
+            if (ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana'] - ledger_temp.loc[ledger_temp.shape[0]-2, 'Semana']) == 1:
+                email_relatorio(temp=ledger_temp, patrimonio=patrimonio)
+            else:
+                pass
         # Daqui para baixo não precisa mais, só mantar o time.sleep(60*15)
         teste += 6
         time.sleep(60*15)  # Medida em segundos
