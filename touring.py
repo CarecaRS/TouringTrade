@@ -335,7 +335,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
         ledger = ledger.to_dict(orient='records')
     except:
         ledger = []
-    status = 0
+#    status = 0
     marcador = 1
     while cliente.get_system_status()['msg'] == 'normal':
         # faz verificação do sinal da Binance, se não estiver normal retorna erro (depois do 'else' lá embaixo)
@@ -359,45 +359,47 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
         carteira_full = max_ordens - round(saldoBTCemUSD/fatia)
         qtde = fatia/preco_ticker
         qtde = math.floor(qtde/step_btc)*step_btc
-        # PROCESSAMENTO DE MOMENTOS SEM AÇÃO
-        if historico.loc[(historico.shape[0]-1), 'sinal_est'] == 0:  # Sinal de Compra da estratégia
-            print('\n   --> Sem movimentações por enquanto.\n')
+        # Se a carteira estiver cheia novamente, refaz o valor das fatias,
+        # senão só segue para a análise dos sinais
+        if carteira_full == max_ordens:
+            fatia = saldos_iniciais['USD']/carteira_full
+        else:
             pass
         # PROCESSAMENTO DE COMPRAS
-        elif historico.loc[(historico.shape[0]-1), 'sinal_est'] == 1:  # Sinal de Compra da estratégia
+        if historico.loc[(historico.shape[0]-1), 'sinal_est'] == 1:  # Sinal de Compra da estratégia
         # Verifica saldo em carteira. Se a carteira estiver vazia,
         # não tem recurso para comprar, então nem verifica os sinais
         # de compra. Se a carteira estiver cheia novamente, refaz o
         # valor das fatias
             if carteira_full == 0:
-                print(f'\n   --> Sem recursos para comprar mais nada\n')
+                print(f'\n   --> Sinal de compra, mas sem recursos para comprar mais nada\n')
                 pass
-            elif carteira_full == max_ordens:
-                fatia = saldos_iniciais['USD']/carteira_full
-                marcador += 1
             else:
-                print('Algum cálculo errado na relação carteira_full / max_ordens aconteceu. Favor verificar.')
-            ordem_compra(ticker=ticker, quantity=qtde)
-            cv = 'compra'
-            status = 1
-            ledger.append({'Data': datetime.datetime.now(),
-                           'Semana': datetime.datetime.now().isocalendar()[1],
-                           'Ativo': ticker[:3],
-                           'CV': cv,
-                           'Marcador': marcador,
-                           'ValorUnitario': round(preco_ticker, 2),
-                           'Quantia': '{:.5f}'.format(qtde),
-                           'ValorNegociado': round(fatia, 2),
-                           'PatrimonioTotal': round(patrimonio, 2)})
-            email_compra(saldos_iniciais=saldos_iniciais,
-                         saldo_usd=saldo_usd,
-                         saldo_ticker=saldo_ticker,
-                         preco_ticker=preco_ticker,
-                         patrimonio=patrimonio,
-                         qtde=qtde,
-                         fatia=fatia)
-            print(f'\n   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
-            pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
+                if carteira_full == max_ordens:
+                    marcador += 1
+                else:
+                    pass
+                ordem_compra(ticker=ticker, quantity=qtde)
+                cv = 'compra'
+#                status = 1
+                ledger.append({'Data': datetime.datetime.now(),
+                               'Semana': datetime.datetime.now().isocalendar()[1],
+                               'Ativo': ticker[:3],
+                               'CV': cv,
+                               'Marcador': marcador,
+                               'ValorUnitario': round(preco_ticker, 2),
+                               'Quantia': '{:.5f}'.format(qtde),
+                               'ValorNegociado': round(fatia, 2),
+                               'PatrimonioTotal': round(patrimonio, 2)})
+                email_compra(saldos_iniciais=saldos_iniciais,
+                             saldo_usd=saldo_usd,
+                             saldo_ticker=saldo_ticker,
+                             preco_ticker=preco_ticker,
+                             patrimonio=patrimonio,
+                             qtde=qtde,
+                             fatia=fatia)
+                print(f'\n   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
+                pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
         # PROCESSAMENTO DE VENDAS
         elif historico.loc[(historico.shape[0]-1), 'sinal_est'] == -1:  # Sinal de Venda da estratégia
             if carteira_full == max_ordens:  # SE CARTEIRA 100% CHEIA DE GRANA, NÃO TEM O QUE VENDER
@@ -434,9 +436,10 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                        patrimonio=patrimonio,
                                        qtde=qtde,
                                        fatia=fatia)
-                status = -1
+#                status = -1
                 pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
         else:
+            print(f'\n   --> Estratégia sem sinais de compra ou venda para o período, esperando.\n')
             pass
         # ENVIO DO RELATÓRIO SEMANAL, SE MUDOU A SEMANA
         ledger_temp = pd.DataFrame(ledger)
