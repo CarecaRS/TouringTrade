@@ -27,11 +27,15 @@ def email_compra(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, preco_
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
     print('Preparando valores para envio da mensagem de compra...')
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
+    preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
+    patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
     subject = f'Touring: compra de {ticker[:3]}s realizada!'
     body = (f'Acabei de realizar uma ordem de compra!\n\n\
             Ativo negociado: {ticker[:3]}\n\
             Valor atual do ativo: US${round(preco_ticker, 2)}\n\
-            Valor atual investido: US${round(fatia, 2)}\n\
+            Valor que eu investi: US${round(fatia, 2)}\n\
             Quantidade comprada: {'{:.5f}'.format(qtde)} {ticker[:3]}\n\n\
             Total investido atualmente: US${round((saldo_ticker*preco_ticker), 2)}\n\
             Quantidade total de {ticker[:3]} em carteira: {'{:.5f}'.format(saldo_ticker)} {ticker[:3]}s\n\
@@ -52,6 +56,10 @@ def email_venda(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, preco_t
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
     print('Preparando valores para envio da mensagem de venda...')
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
+    preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
+    patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
     subject = f'Touring: venda de {ticker[:3]}s realizada!'
     body = (f'Acabei de realizar uma ordem de venda!\n\n\
             Ativo negociado: {ticker[:3]}\n\
@@ -77,6 +85,10 @@ def email_venda_zerado(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, 
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
     print('Preparando valores para envio da mensagem de venda...')
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
+    preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
+    patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
     subject = f'Touring: posicoes de {ticker[:3]}s zeradas!'
     body = (f'Acabei de realizar a ultima ordem de venda do saldo disponivel de {ticker[:3]}s!\n\n\
             Ativo negociado: {ticker[:3]}\n\
@@ -365,9 +377,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             if carteira_full == 0:  # SE CARTEIRA SEM GRANA NÃO TEM COMO COMPRAR
                 pass
             else:
-#                ordem_compra(ticker=ticker, quantity=qtde)
-                # registro de informações para controle semanal seria interessante,
-                # mas o próprio app da Binance já fornece essas informações diversas
+                ordem_compra(ticker=ticker, quantity=qtde)
                 cv = 'compra'
                 status = 1
                 ledger.append({'Data': datetime.datetime.now(),
@@ -393,9 +403,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             if carteira_full == max_ordens:  # SE CARTEIRA 100% CHEIA DE GRANA, NÃO TEM O QUE VENDER
                 pass
             else:
-#                ordem_venda(ticker=ticker, quantity=qtde)
-                # registro de informações para controle semanal seria interessante,
-                # mas o próprio app da Binance já fornece essas informações diversas
+                ordem_venda(ticker=ticker, quantity=qtde)
                 cv = 'venda'
                 print(f'\n   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.')
                 carteira_full += 1
