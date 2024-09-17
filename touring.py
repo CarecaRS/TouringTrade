@@ -335,7 +335,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
         ledger = ledger.to_dict(orient='records')
     except:
         ledger = []
-    teste = 0
+#    teste = 0
     status = 0
     marcador = 1
     while cliente.get_system_status()['msg'] == 'normal':
@@ -453,10 +453,10 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             else:
                 pass
         # Daqui para baixo não precisa mais, só mantar o time.sleep(60*15)
-        teste += 6
+#        teste += 6
         time.sleep(60*15)  # Medida em segundos
-        if teste >= 720:
-            break
+#        if teste >= 720:
+#            break
     else:
         print('\n\n!!!! **** ATENÇÃO **** !!!!\n')
         print('!!!! BINANCE FORA DO AR !!!!\n')
