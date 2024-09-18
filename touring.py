@@ -339,137 +339,153 @@ def estrategia_bitcoin(df=None, defasagem=6):
 # TOURING
 ###
 def touring(max_ordens=3, compra=None, venda=None, ticker=None):
+    # Verifica a existência do arquivo de registro das operações passadas.
+    # Se o arquivo 'livro_contabil.csv' não existir na pasta deste script
+    # ele vai gerar um novo no momento do primeiro trade.
     try:
         ledger = pd.read_csv('livro_contabil.csv')
         ledger = ledger.to_dict(orient='records')
     except:
         ledger = []
-#    status = 0
-    marcador = 1
+    marcador = 1  # Apenas para controle de ledger e zeramento de carteira
+    print('Aguardando o tempo certo para a primeira interação...')
     while cliente.get_system_status()['msg'] == 'normal':
-        # faz verificação do sinal da Binance, se não estiver normal retorna erro (depois do 'else' lá embaixo)
-        print('Binance online.\n')
-        historico = valores_historicos(dias=8)  # busca o histórico do ativo
-        adiciona_indicadores(historico)  # adiciona os indicadores utilizados
-        print('Removendo NaNs e refazendo índice...')
-        historico = historico.dropna()
-        historico = historico.reset_index()  # limpa o df (acima) e faz o reset do índice
-        estrategia_bitcoin(historico)  # gera os sinais de compra/venda da estratégia
-        # Coleta dos saldos iniciais
-        saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
-        saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
-        preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
-        patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
-        saldos_iniciais = {'USD': saldo_usd, 'BTC': saldo_ticker, 'PatrimonioUSD': patrimonio}
-        saldoBTCemUSD = saldo_ticker*preco_ticker
-        filtros_btc = cliente.get_symbol_info(ticker)['filters']
-        step_btc = float(filtros_btc[1]['minQty'])
-        fatia = saldos_iniciais['PatrimonioUSD']/max_ordens
-        carteira_full = max_ordens - round(saldoBTCemUSD/fatia)
-        qtde = fatia/preco_ticker
-        qtde = math.floor(qtde/step_btc)*step_btc
-        # Se a carteira estiver cheia novamente, refaz o valor das fatias,
-        # senão só segue para a análise dos sinais
-        if carteira_full == max_ordens:
-            fatia = saldos_iniciais['USD']/carteira_full
+        # A primeira interação estava ok, mas as próximas interações estavam
+        # demorando mais tempo do que o código previa, então ao invés de esperar
+        # por 60*15 segundos a cada ciclo, o ciclo só começa se for igual a um
+        # destes momentos abaixo (min:seg).
+        while (datetime.datetime.now().strftime('%M:%S') in ('15:00', '30:00', '45:00', '00:00')) == False:
+            time.sleep(1)
         else:
-            pass
-        # PROCESSAMENTO DE COMPRAS
-        if historico.loc[(historico.shape[0]-1), 'sinal_est'] == 1:  # Sinal de Compra da estratégia
-        # Verifica saldo em carteira. Se a carteira estiver vazia,
-        # não tem recurso para comprar, então nem verifica os sinais
-        # de compra. Se a carteira estiver cheia novamente, refaz o
-        # valor das fatias
-            if carteira_full == 0:
-                print(f'\nHorário atual: {datetime.datetime.now().strftime('%H:%M:%S do dia %d/%m')}')
-                print(f'   --> Sinal de compra, mas sem recursos para comprar mais nada\n')
+            # faz verificação do sinal da Binance, se não estiver normal retorna erro (depois do último 'else' lá embaixo)
+            print('Binance online.\n')
+            historico = valores_historicos(dias=8)  # busca o histórico do ativo
+            adiciona_indicadores(historico)  # adiciona os indicadores utilizados
+            print('Removendo NaNs e refazendo índice...')
+            historico = historico.dropna()
+            historico = historico.reset_index()  # limpa o df (acima) e faz o reset do índice
+            estrategia_bitcoin(historico)  # gera os sinais de compra/venda da estratégia
+            # Coleta dos saldos iniciais
+            saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
+            saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades do ativo
+            preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])  # Resgata o valor médio do ativo
+            patrimonio = saldo_usd + (saldo_ticker * preco_ticker)  # Calcula o patrimônio total vigente (ativo + USD)
+            saldos_iniciais = {'USD': saldo_usd, 'BTC': saldo_ticker, 'PatrimonioUSD': patrimonio}  # Cria um dicionário com essas informações
+            saldoBTCemUSD = saldo_ticker*preco_ticker  # Estima o valor do ativo em USD
+            filtros_btc = cliente.get_symbol_info(ticker)['filters']  # Busca as informações pertinentes ao ativo na exchange
+            step_btc = float(filtros_btc[1]['minQty'])  # Obtenção da quantidade mínima do ativo para uma ordem válida
+            fatia = saldos_iniciais['PatrimonioUSD']/max_ordens  # Calcula o valor de cada 'fatia', baseado no número máximo de posições mantidas a cada tempo
+            carteira_full = max_ordens - round(saldoBTCemUSD/fatia)  # Faz o registro do número de posições que pode-se entrar no momento do loop
+            qtde = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
+            qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo em cada ordem
+            # Se a carteira estiver cheia novamente, refaz o valor das fatias,
+            # senão só segue para a análise dos sinais
+            if carteira_full == max_ordens:
+                fatia = saldos_iniciais['USD']/carteira_full
+            else:
+                pass
+            # PROCESSAMENTO DE COMPRAS
+            if historico.loc[(historico.shape[0]-1), 'sinal_est'] == 1:  # Sinal de Compra da estratégia
+            # Verifica saldo em carteira. Se a carteira estiver vazia,
+            # não tem recurso para comprar, então nem verifica os sinais
+            # de compra. Se a carteira estiver cheia novamente, refaz o
+            # valor das fatias
+                if carteira_full == 0:
+                    print(f'\nÚltima verificação: {datetime.datetime.now().strftime('%H:%M:%S do dia %d/%m')}')
+                    print(f'   --> Sinal de compra, mas sem recursos para comprar mais nada\n')
+                    pass
+                else:
+                    if carteira_full == max_ordens:
+                        marcador += 1
+                    else:
+                        pass
+                    ordem_compra(ticker=ticker, quantity=qtde)
+                    cv = 'compra'
+                    # Cria o registro em ledger
+                    ledger.append({'Data': datetime.datetime.now(),
+                                   'Semana': datetime.datetime.now().isocalendar()[1],
+                                   'Ativo': ticker[:3],
+                                   'CV': cv,
+                                   'Marcador': marcador,
+                                   'ValorUnitario': round(preco_ticker, 2),
+                                   'Quantia': '{:.5f}'.format(qtde),
+                                   'ValorNegociado': round(fatia, 2),
+                                   'PatrimonioTotal': round(patrimonio, 2)})
+                    # Informa por e-mail da compra
+                    email_compra(saldos_iniciais=saldos_iniciais,
+                                 saldo_usd=saldo_usd,
+                                 saldo_ticker=saldo_ticker,
+                                 preco_ticker=preco_ticker,
+                                 patrimonio=patrimonio,
+                                 qtde=qtde,
+                                 fatia=fatia)
+                    print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                    print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
+                    # Faz o registro do ledger em arquivo local
+                    pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
+            # PROCESSAMENTO DE VENDAS
+            elif historico.loc[(historico.shape[0]-1), 'sinal_est'] == -1:  # Sinal de Venda da estratégia
+                if carteira_full == max_ordens:  # SE CARTEIRA 100% CHEIA DE GRANA, NÃO TEM O QUE VENDER
+                    pass
+                else:
+                    ordem_venda(ticker=ticker, quantity=qtde)
+                    cv = 'venda'
+                    print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                    print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.')
+                    carteira_full += 1
+                    # Cria o registro em ledger
+                    ledger.append({'Data': datetime.datetime.now(),
+                                   'Semana': datetime.datetime.now().isocalendar()[1],
+                                   'Ativo': ticker[:3],
+                                   'CV': cv,
+                                   'Marcador': marcador,
+                                   'ValorUnitario': round(preco_ticker, 2),
+                                   'Quantia': '{:.5f}'.format(qtde),
+                                   'ValorNegociado': round(fatia, 2),
+                                   'PatrimonioTotal': round(patrimonio, 2)})
+                    # Informa a venda por e-mail, seja venda parcial ou de zeramento de todas posições
+                    if carteira_full == 0:
+                        print(f'\n\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                        print('   --> ***  Todas posições zeradas!  ***')
+                        # O email não muda praticamente nada, só a informação de ativo zerado
+                        email_venda_zerado(saldos_iniciais=saldos_iniciais,
+                                           saldo_usd=saldo_usd,
+                                           saldo_ticker=saldo_ticker,
+                                           preco_ticker=preco_ticker,
+                                           patrimonio=patrimonio,
+                                           qtde=qtde,
+                                           fatia=fatia)
+                    else:
+                        email_venda(saldos_iniciais=saldos_iniciais,
+                                    saldo_usd=saldo_usd,
+                                    saldo_ticker=saldo_ticker,
+                                    preco_ticker=preco_ticker,
+                                    patrimonio=patrimonio,
+                                    qtde=qtde,
+                                    fatia=fatia)
+                    # Faz o registro do ledger em arquivo local
+                    pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
+            else:
+                print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                print(f'   --> Estratégia sem sinais de compra ou venda para o período, esperando.\n')
+                pass
+            # ENVIO DO RELATÓRIO SEMANAL, SE MUDOU A SEMANA
+            ledger_temp = pd.DataFrame(ledger)
+            if len(ledger_temp) <= 2:
                 pass
             else:
-                if carteira_full == max_ordens:
-                    marcador += 1
+                if (ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana'] - ledger_temp.loc[ledger_temp.shape[0]-2, 'Semana']) == 1:
+                    email_relatorio(temp=ledger_temp, patrimonio=patrimonio)
                 else:
                     pass
-                ordem_compra(ticker=ticker, quantity=qtde)
-                cv = 'compra'
-#                status = 1
-                ledger.append({'Data': datetime.datetime.now(),
-                               'Semana': datetime.datetime.now().isocalendar()[1],
-                               'Ativo': ticker[:3],
-                               'CV': cv,
-                               'Marcador': marcador,
-                               'ValorUnitario': round(preco_ticker, 2),
-                               'Quantia': '{:.5f}'.format(qtde),
-                               'ValorNegociado': round(fatia, 2),
-                               'PatrimonioTotal': round(patrimonio, 2)})
-                email_compra(saldos_iniciais=saldos_iniciais,
-                             saldo_usd=saldo_usd,
-                             saldo_ticker=saldo_ticker,
-                             preco_ticker=preco_ticker,
-                             patrimonio=patrimonio,
-                             qtde=qtde,
-                             fatia=fatia)
-                print(f'\nHorário atual: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
-                pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
-        # PROCESSAMENTO DE VENDAS
-        elif historico.loc[(historico.shape[0]-1), 'sinal_est'] == -1:  # Sinal de Venda da estratégia
-            if carteira_full == max_ordens:  # SE CARTEIRA 100% CHEIA DE GRANA, NÃO TEM O QUE VENDER
-                pass
-            else:
-                ordem_venda(ticker=ticker, quantity=qtde)
-                cv = 'venda'
-                print(f'\nHorário atual: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.')
-                carteira_full += 1
-                ledger.append({'Data': datetime.datetime.now(),
-                               'Semana': datetime.datetime.now().isocalendar()[1],
-                               'Ativo': ticker[:3],
-                               'CV': cv,
-                               'Marcador': marcador,
-                               'ValorUnitario': round(preco_ticker, 2),
-                               'Quantia': '{:.5f}'.format(qtde),
-                               'ValorNegociado': round(fatia, 2),
-                               'PatrimonioTotal': round(patrimonio, 2)})
-                if carteira_full == 0:
-                    print(f'\n\nHorário atual: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                    print('   --> ***  Todas posições zeradas!  ***')
-                    # O email não muda praticamente nada, só a informação de ativo zerado
-                    email_venda_zerado(saldos_iniciais=saldos_iniciais,
-                                       saldo_usd=saldo_usd,
-                                       saldo_ticker=saldo_ticker,
-                                       preco_ticker=preco_ticker,
-                                       patrimonio=patrimonio,
-                                       qtde=qtde,
-                                       fatia=fatia)
-                else:
-                    email_venda(saldos_iniciais=saldos_iniciais,
-                                saldo_usd=saldo_usd,
-                                saldo_ticker=saldo_ticker,
-                                preco_ticker=preco_ticker,
-                                patrimonio=patrimonio,
-                                qtde=qtde,
-                                fatia=fatia)
-#                status = -1
-                pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
-        else:
-            print(f'\nHorário atual: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-            print(f'   --> Estratégia sem sinais de compra ou venda para o período, esperando.\n')
-            pass
-        # ENVIO DO RELATÓRIO SEMANAL, SE MUDOU A SEMANA
-        ledger_temp = pd.DataFrame(ledger)
-        if len(ledger_temp) <= 2:
-            pass
-        else:
-            if (ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana'] - ledger_temp.loc[ledger_temp.shape[0]-2, 'Semana']) == 1:
-                email_relatorio(temp=ledger_temp, patrimonio=patrimonio)
-            else:
-                pass
-        time.sleep(60*15)  # Medida em segundos
+    # Se o sistema da Binance retornar qualquer coisa diferente de 'normal':
     else:
+        # Imprime os avisos no console
         print('\n\n!!!! **** ATENÇÃO **** !!!!\n')
         print('!!!! BINANCE FORA DO AR !!!!\n')
         print('Não é possível seguir rodando.\n\n')
-        smtp_server = 'smtp.gmail.com'  # início do protocolo de envio de e-mail quando Binance der erro
+        # Registra os itens para envio de mensagem de aviso por e-mail ('cria' o e-mail)
+        smtp_server = 'smtp.gmail.com'
         smtp_port = 587
         subject = '*Touring offline*'
         print('Preparando corpo de texto para envio de e-mail.')
@@ -479,12 +495,17 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                 Lembrando que se eu nao estiver rodando eu nao consigo nem enviar os relatorios semanais.\n\n\
                 Abracos e espero voltar a trabalhar logo :D')
         message = (f'Subject: {subject}\n\n{body}')
+        # Faz o envio do e-mail
         print('Enviando e-mail agora.')
         with smtplib.SMTP(smtp_server, smtp_port) as smtp:
             smtp.starttls()
             smtp.login(email_personal, email_pwd)
             smtp.sendmail(email_sender, email_personal, message)
         print('E-mail enviado com sucesso.')  # final do protocolo de envio de e-mail quando Binance der erro
+        # E morre.
+        # Aqui depende de eu acessar a máquina que está rodando o script, verificar o que houve de errado
+        # (se é só a Binance ou se é algo na máquina/script/python/whatever), arrumar (se for possível) e
+        # colocar rodar novamente.
 
 
 ####################################################
