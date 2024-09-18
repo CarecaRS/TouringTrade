@@ -21,3 +21,5 @@ O objeto `email_sender` seria para utilizar como remetente, mas nos meus testes 
 `email_personal` refere-se ao e-mail do usuário, que receberá as notificações de compra/venda.
 
 `email_pwd` é um password específico gerado através do Google, *NÃO É A SENHA DO PRÓPRIO E-MAIL*! Verificar passo a passo, se necessário, em https://support.google.com/accounts/answer/185833. E, sim, tem que utilizar os espaços entre os caracteres.
+
+Também é necessária a liberação por parte da Binance da conexão através do IP atual. Isso é configurado dentro das *Configurações de API* no dashboard da Binance.
