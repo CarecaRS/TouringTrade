@@ -348,7 +348,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
     except:
         ledger = []
     marcador = 1  # Apenas para controle de ledger e zeramento de carteira
-    print('Aguardando o tempo certo para a primeira interação...')
+    print('\nAguardando o tempo certo para a primeira interação...\n')
     while cliente.get_system_status()['msg'] == 'normal':
         # A primeira interação estava ok, mas as próximas interações estavam
         # demorando mais tempo do que o código previa, então ao invés de esperar
@@ -358,7 +358,8 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             time.sleep(1)
         else:
             # faz verificação do sinal da Binance, se não estiver normal retorna erro (depois do último 'else' lá embaixo)
-            print('Binance online.\n')
+            print('Atingido checkpoint de tempo, verificando...')
+            print('Binance online, realizando nova análise de trading.\n')
             historico = valores_historicos(dias=8)  # busca o histórico do ativo
             adiciona_indicadores(historico)  # adiciona os indicadores utilizados
             print('Removendo NaNs e refazendo índice...')
@@ -392,7 +393,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             # valor das fatias
                 if carteira_full == 0:
                     print(f'\nÚltima verificação: {datetime.datetime.now().strftime('%H:%M:%S do dia %d/%m')}')
-                    print(f'   --> Sinal de compra, mas sem recursos para comprar mais nada\n')
+                    print(f'   --> Sinal de compra, mas sem recursos para comprar mais nada\n\n')
                     pass
                 else:
                     if carteira_full == max_ordens:
@@ -431,7 +432,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                     ordem_venda(ticker=ticker, quantity=qtde)
                     cv = 'venda'
                     print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                    print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.')
+                    print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.\n\n')
                     carteira_full += 1
                     # Cria o registro em ledger
                     ledger.append({'Data': datetime.datetime.now(),
@@ -446,7 +447,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                     # Informa a venda por e-mail, seja venda parcial ou de zeramento de todas posições
                     if carteira_full == 0:
                         print(f'\n\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                        print('   --> ***  Todas posições zeradas!  ***')
+                        print('   --> ***  Todas posições zeradas!  ***\n\n')
                         # O email não muda praticamente nada, só a informação de ativo zerado
                         email_venda_zerado(saldos_iniciais=saldos_iniciais,
                                            saldo_usd=saldo_usd,
@@ -467,7 +468,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                     pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
             else:
                 print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                print(f'   --> Estratégia sem sinais de compra ou venda para o período, esperando.\n')
+                print(f'   --> Estratégia sem sinais de compra ou venda para o período, esperando.\n\n')
                 pass
             # ENVIO DO RELATÓRIO SEMANAL, SE MUDOU A SEMANA
             ledger_temp = pd.DataFrame(ledger)
