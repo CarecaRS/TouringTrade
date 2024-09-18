@@ -418,15 +418,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                'Quantia': '{:.5f}'.format(qtde),
                                'ValorNegociado': round(fatia, 2),
                                'PatrimonioTotal': round(patrimonio, 2)})
-                if carteira_full == max_ordens:
-                    email_venda(saldos_iniciais=saldos_iniciais,
-                                saldo_usd=saldo_usd,
-                                saldo_ticker=saldo_ticker,
-                                preco_ticker=preco_ticker,
-                                patrimonio=patrimonio,
-                                qtde=qtde,
-                                fatia=fatia)
-                else:
+                if carteira_full == 0:
                     print('\n\n   --> ***  Todas posições zeradas!  ***')
                     # O email não muda praticamente nada, só a informação de ativo zerado
                     email_venda_zerado(saldos_iniciais=saldos_iniciais,
@@ -436,6 +428,14 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                        patrimonio=patrimonio,
                                        qtde=qtde,
                                        fatia=fatia)
+                else:
+                    email_venda(saldos_iniciais=saldos_iniciais,
+                                saldo_usd=saldo_usd,
+                                saldo_ticker=saldo_ticker,
+                                preco_ticker=preco_ticker,
+                                patrimonio=patrimonio,
+                                qtde=qtde,
+                                fatia=fatia)
 #                status = -1
                 pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
         else:
