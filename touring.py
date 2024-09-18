@@ -13,6 +13,15 @@ import smtplib  # necessário para o e-mail
 from keys import api_secret_trade, api_key_trade, email_sender, email_personal, email_pwd
 %autoindent OFF  # Uso pessoal, em função da minha IDE (NeoVIM)
 
+# TO-DO LIST
+#
+# Vamos imaginar que esse algoritmo funcione *muito* bem. Eventualmente pode-se chegar a um ponto
+# em que cada ordem registrada tenha um peso significativo na dinâmica do mercado (imaginemos,
+# por exemplo, ordens de US$100mil). Para tentar solucionar isso, programar uma verificação do
+# histórico das últimas N ordens processadas pelo agente (N sendo a quantidade de ordens das últimas
+# 24h, por exemplo), de modo a poder mensurar um montante ótimo de negociação que tenha o menor
+# impacto possível.
+
 ####################################################
 #                                                  #
 #   Definição das funçõs utilizadas pelo Touring   #
