@@ -381,7 +381,8 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
         # de compra. Se a carteira estiver cheia novamente, refaz o
         # valor das fatias
             if carteira_full == 0:
-                print(f'\n   --> Sinal de compra, mas sem recursos para comprar mais nada\n')
+                print(f'\nHorário atual: {datetime.datetime.now().strftime('%H:%M:%S do dia %d/%m')}')
+                print(f'   --> Sinal de compra, mas sem recursos para comprar mais nada\n')
                 pass
             else:
                 if carteira_full == max_ordens:
@@ -407,7 +408,8 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                              patrimonio=patrimonio,
                              qtde=qtde,
                              fatia=fatia)
-                print(f'\n   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
+                print(f'\nHorário atual: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
                 pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
         # PROCESSAMENTO DE VENDAS
         elif historico.loc[(historico.shape[0]-1), 'sinal_est'] == -1:  # Sinal de Venda da estratégia
@@ -416,7 +418,8 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             else:
                 ordem_venda(ticker=ticker, quantity=qtde)
                 cv = 'venda'
-                print(f'\n   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.')
+                print(f'\nHorário atual: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.')
                 carteira_full += 1
                 ledger.append({'Data': datetime.datetime.now(),
                                'Semana': datetime.datetime.now().isocalendar()[1],
@@ -428,7 +431,8 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                'ValorNegociado': round(fatia, 2),
                                'PatrimonioTotal': round(patrimonio, 2)})
                 if carteira_full == 0:
-                    print('\n\n   --> ***  Todas posições zeradas!  ***')
+                    print(f'\n\nHorário atual: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                    print('   --> ***  Todas posições zeradas!  ***')
                     # O email não muda praticamente nada, só a informação de ativo zerado
                     email_venda_zerado(saldos_iniciais=saldos_iniciais,
                                        saldo_usd=saldo_usd,
@@ -448,7 +452,8 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
 #                status = -1
                 pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
         else:
-            print(f'\n   --> Estratégia sem sinais de compra ou venda para o período, esperando.\n')
+            print(f'\nHorário atual: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+            print(f'   --> Estratégia sem sinais de compra ou venda para o período, esperando.\n')
             pass
         # ENVIO DO RELATÓRIO SEMANAL, SE MUDOU A SEMANA
         ledger_temp = pd.DataFrame(ledger)
