@@ -137,7 +137,9 @@ def email_relatorio(temp=None):
             Ativo negociado: {ticker[:3]}\n\
             Rendimento da estrategia: {round(var_estrategia*100, 4)}%\n\
             Oscilacao do ativo: {round(var_ativo*100, 4)}%\n\
-            Quantidade de trades de referencia: {(temp.loc[mask]['CV'] == 'compra').sum()} COMPRAS e {(temp.loc[mask]['CV'] == 'venda').sum()} VENDAS.\n\n\
+            Quantidade de trades na semana: {(temp.loc[mask]['CV'] == 'compra').sum()} COMPRAS e {(temp.loc[mask]['CV'] == 'venda').sum()} VENDAS.\n\n\
+            Desempenho total da estrategia (inicio 17/09/2024): {round(((patrimonio/temp['PatrimonioTotal'].loc[0])-1)*100, 4)}%\n\
+            Desempenho total do ativo (inicio 17/09/2024): {round(((preco_ticker/temp['ValorUnitario'].loc[0])-1)*100, 4)}%\n\n\
             Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
     message = (f'Subject: {subject}\n\n{body}')
     print('Enviando e-mail agora.')
@@ -531,23 +533,6 @@ max_ordens = 3
 #
 touring(max_ordens=max_ordens, ticker=ticker)
 
-
-
-        ledger_temp = pd.read_csv('livro_contabil.csv')
-                if ((ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana'] - ledger_temp.loc[ledger_temp.shape[0]-2, 'Semana']) == 1) & (ledger_temp.iloc[-1]['Mail'] == 0):
-                    email_relatorio(temp=ledger_temp)
-                    ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
-                    pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
-                else:
-                    pass
-
-
-
-
-
-len(ledger_temp)
-
-ledger_temp.Mail
 
 ####
 # VERIFICAÇÕES diversas na Binance, caso necessárias:

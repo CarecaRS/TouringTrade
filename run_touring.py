@@ -137,7 +137,9 @@ def email_relatorio(temp=None):
             Ativo negociado: {ticker[:3]}\n\
             Rendimento da estrategia: {round(var_estrategia*100, 4)}%\n\
             Oscilacao do ativo: {round(var_ativo*100, 4)}%\n\
-            Quantidade de trades de referencia: {(temp.loc[mask]['CV'] == 'compra').sum()} COMPRAS e {(temp.loc[mask]['CV'] == 'venda').sum()} VENDAS.\n\n\
+            Quantidade de trades na semana: {(temp.loc[mask]['CV'] == 'compra').sum()} COMPRAS e {(temp.loc[mask]['CV'] == 'venda').sum()} VENDAS.\n\n\
+            Desempenho total da estrategia (inicio 17/09/2024): {round(((patrimonio/temp['PatrimonioTotal'].loc[0])-1)*100, 4)}%\n\
+            Desempenho total do ativo (inicio 17/09/2024): {round(((preco_ticker/temp['ValorUnitario'].loc[0])-1)*100, 4)}%\n\n\
             Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
     message = (f'Subject: {subject}\n\n{body}')
     print('Enviando e-mail agora.')
@@ -528,22 +530,3 @@ ticker = 'BTCUSDT'  # Aqui, BTC adquirido/comprado com USDT
 max_ordens = 3
 #
 touring(max_ordens=max_ordens, ticker=ticker)
-
-
-####
-# VERIFICAÇÕES diversas na Binance, caso necessárias:
-###
-carteira  # Contém os saldos
-cliente  # API para chamar outras funções (como as ordens, por exemplo)
-infos  # Dicionário com informações diversas
-
-# Verifica as autorizações do cliente (trade/saque/depósito)
-infos['canTrade']
-infos['canWithdraw']
-infos['canDeposit']
-
-# Verifica a conta pela qual são feitas as negociações (margin/spot)
-infos['accountType']
-
-# Retorna o user ID na corretora
-infos['uid']
