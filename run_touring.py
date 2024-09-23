@@ -119,23 +119,25 @@ def email_venda_zerado(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, 
 
 
 # Relatório semanal
-def email_relatorio(temp=None, patrimonio=None):
+def email_relatorio(temp=None):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
     subject = 'Oi chefe, aqui eh o Touring! Estou trazendo teu relatorio semanal :D'
     print('Preparando valores para envio da mensagem...')
     semana = temp['Semana'].max()-1
     mask = temp['Semana'] == semana
-    var_estrategia = (temp.loc[mask, 'PatrimonioTotal'][0]/temp.loc[mask, 'PatrimonioTotal'].iloc[-1])-1
-    var_ativo = (temp.loc[mask, 'ValorUnitario'][0]/temp.loc[mask, 'ValorUnitario'].iloc[-1])-1
-    mask_compra = temp.loc[mask, 'CV'] == 'compra'
-    mask_venda = temp.loc[mask, 'CV'] == 'venda'
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
+    preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
+    patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
+    var_estrategia = (patrimonio/temp.loc[mask, 'PatrimonioTotal'][0])-1
+    var_ativo = (preco_ticker/temp.loc[mask, 'ValorUnitario'][0])-1
     body = (f'Aqui eu trago seu resumo semanal de desempenho!\n\n\
             Patrimonio total hoje: US${round(patrimonio, 2)}\n\n\
             Ativo negociado: {ticker[:3]}\n\
             Rendimento da estrategia: {round(var_estrategia*100, 4)}%\n\
             Oscilacao do ativo: {round(var_ativo*100, 4)}%\n\
-            Quantidade de trades de referencia: {len(temp.loc[mask_compra])} COMPRAS e {len(temp.loc[mask_venda])} VENDAS.\n\n\
+            Quantidade de trades de referencia: {(temp.loc[mask]['CV'] == 'compra').sum()} COMPRAS e {(temp.loc[mask]['CV'] == 'venda').sum()} VENDAS.\n\n\
             Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
     message = (f'Subject: {subject}\n\n{body}')
     print('Enviando e-mail agora.')
@@ -470,17 +472,18 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                 print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                 print(f'   --> Estratégia sem sinais de compra ou venda para o período, esperando.\n\n')
                 pass
-            # ENVIO DO RELATÓRIO SEMANAL, SE MUDOU A SEMANA --- precisa ajustar melhor, não funciona direito
-            # O relatório tenta ser enviado a cada leitura da Binance, tem que fazer alguma verificação do tipo
-            # 'se já foi enviado então não envio mais'
-#            ledger_temp = pd.DataFrame(ledger)
-#            if len(ledger_temp) <= 2:
-#                pass
-#            else:
-#                if (ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana'] - ledger_temp.loc[ledger_temp.shape[0]-2, 'Semana']) == 1:
-#                    email_relatorio(temp=ledger_temp, patrimonio=patrimonio)
-#                else:
-#                    pass
+            # ENVIO DO RELATÓRIO SEMANAL, SE MUDOU A SEMANA
+            ledger_temp = pd.DataFrame(ledger)
+            if len(ledger_temp) <= 2:
+                pass
+            else:
+                if ((ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana'] - ledger_temp.loc[ledger_temp.shape[0]-2, 'Semana']) == 1) & (ledger_temp.iloc[-1]['Mail'] == 0):
+                    print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.')
+                    email_relatorio(temp=ledger_temp)
+                    ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
+                    pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
+                else:
+                    pass
     # Se o sistema da Binance retornar qualquer coisa diferente de 'normal':
     else:
         # Imprime os avisos no console
