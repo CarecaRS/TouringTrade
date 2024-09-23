@@ -119,13 +119,17 @@ def email_venda_zerado(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, 
 
 
 # Relatório semanal
-def email_relatorio(temp=None, patrimonio=None):
+def email_relatorio(temp=None):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
     subject = 'Oi chefe, aqui eh o Touring! Estou trazendo teu relatorio semanal :D'
     print('Preparando valores para envio da mensagem...')
     semana = temp['Semana'].max()-1
     mask = temp['Semana'] == semana
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
+    preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
+    patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
     var_estrategia = (temp.loc[mask, 'PatrimonioTotal'][0]/temp.loc[mask, 'PatrimonioTotal'].iloc[-1])-1
     var_ativo = (temp.loc[mask, 'ValorUnitario'][0]/temp.loc[mask, 'ValorUnitario'].iloc[-1])-1
     mask_compra = temp.loc[mask, 'CV'] == 'compra'
@@ -474,11 +478,11 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             ledger_temp = pd.DataFrame(ledger)
             if len(ledger_temp) <= 2:
                 pass
-            else:
-                if (ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana'] - ledger_temp.loc[ledger_temp.shape[0]-2, 'Semana']) == 1:
-                    email_relatorio(temp=ledger_temp, patrimonio=patrimonio)
-                else:
-                    pass
+#            else:
+#                if (ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana'] - ledger_temp.loc[ledger_temp.shape[0]-2, 'Semana']) == 1:
+#                    email_relatorio(temp=ledger_temp, patrimonio=patrimonio)
+#                else:
+#                    pass
     # Se o sistema da Binance retornar qualquer coisa diferente de 'normal':
     else:
         # Imprime os avisos no console
@@ -523,7 +527,6 @@ ticker = 'BTCUSDT'  # Aqui, BTC adquirido/comprado com USDT
 max_ordens = 3
 #
 touring(max_ordens=max_ordens, ticker=ticker)
-
 
 ####
 # VERIFICAÇÕES diversas na Binance, caso necessárias:
