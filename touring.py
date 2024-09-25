@@ -434,7 +434,14 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                 if carteira_full == max_ordens:  # SE CARTEIRA 100% CHEIA DE GRANA, NÃO TEM O QUE VENDER
                     pass
                 else:
-                    ordem_venda(ticker=ticker, quantity=qtde)
+                    # Se a quantia em carteira for maior ou igual que o mantante calculado na fatia, segue normal
+                    if carteira[carteira['asset'] == ticker[:3]]['free'].sum() >= qtde:                    
+                        ordem_venda(ticker=ticker, quantity=qtde)
+                    # Se a quantia em carteira for menor que o montante de fatia, recalcula e vende o que tem
+                    else:
+                        qtde = carteira[carteira['asset'] == ticker[:3]]['free'].sum() # Resgata o valor total de BTCs em carteira
+                        qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo para venda
+                        ordem_venda(ticker=ticker, quantity=qtde)
                     cv = 'venda'
                     print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                     print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.\n\n')
@@ -530,7 +537,7 @@ carteira, cliente, infos = carteira_binance()
 ticker = 'BTCUSDT'  # Aqui, BTC adquirido/comprado com USDT
 # Número máximo de ordens compradas ao mesmo tempo:
 max_ordens = 3
-#
+
 touring(max_ordens=max_ordens, ticker=ticker)
 
 

@@ -11,16 +11,7 @@ import smtplib  # necessário para o e-mail
 # Abaixo: importação da API da Binance e dados do e-mail
 # Isso tudo do arquivo local keys.py
 from keys import api_secret_trade, api_key_trade, email_sender, email_personal, email_pwd
-#%autoindent OFF  # Uso pessoal, em função da minha IDE (NeoVIM)
 
-# TO-DO LIST
-#
-# Vamos imaginar que esse algoritmo funcione *muito* bem. Eventualmente pode-se chegar a um ponto
-# em que cada ordem registrada tenha um peso significativo na dinâmica do mercado (imaginemos,
-# por exemplo, ordens de US$100mil). Para tentar solucionar isso, programar uma verificação do
-# histórico das últimas N ordens processadas pelo agente (N sendo a quantidade de ordens das últimas
-# 24h, por exemplo), de modo a poder mensurar um montante ótimo de negociação que tenha o menor
-# impacto possível.
 
 ####################################################
 #                                                  #
@@ -415,7 +406,8 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                    'ValorUnitario': round(preco_ticker, 2),
                                    'Quantia': '{:.5f}'.format(qtde),
                                    'ValorNegociado': round(fatia, 2),
-                                   'PatrimonioTotal': round(patrimonio, 2)})
+                                   'PatrimonioTotal': round(patrimonio, 2),
+                                   'Mail': 0})
                     # Informa por e-mail da compra
                     email_compra(saldos_iniciais=saldos_iniciais,
                                  saldo_usd=saldo_usd,
@@ -433,7 +425,14 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                 if carteira_full == max_ordens:  # SE CARTEIRA 100% CHEIA DE GRANA, NÃO TEM O QUE VENDER
                     pass
                 else:
-                    ordem_venda(ticker=ticker, quantity=qtde)
+                    # Se a quantia em carteira for maior ou igual que o mantante calculado na fatia, segue normal
+                    if carteira[carteira['asset'] == ticker[:3]]['free'].sum() >= qtde:                    
+                        ordem_venda(ticker=ticker, quantity=qtde)
+                    # Se a quantia em carteira for menor que o montante de fatia, recalcula e vende o que tem
+                    else:
+                        qtde = carteira[carteira['asset'] == ticker[:3]]['free'].sum() # Resgata o valor total de BTCs em carteira
+                        qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo para venda
+                        ordem_venda(ticker=ticker, quantity=qtde)
                     cv = 'venda'
                     print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                     print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.\n\n')
@@ -447,7 +446,8 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                    'ValorUnitario': round(preco_ticker, 2),
                                    'Quantia': '{:.5f}'.format(qtde),
                                    'ValorNegociado': round(fatia, 2),
-                                   'PatrimonioTotal': round(patrimonio, 2)})
+                                   'PatrimonioTotal': round(patrimonio, 2),
+                                   'Mail': 0})
                     # Informa a venda por e-mail, seja venda parcial ou de zeramento de todas posições
                     if carteira_full == 0:
                         print(f'\n\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
@@ -480,7 +480,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                 pass
             else:
                 if ((ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana'] - ledger_temp.loc[ledger_temp.shape[0]-2, 'Semana']) == 1) & (ledger_temp.iloc[-1]['Mail'] == 0):
-                    print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.')
+                    print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
                     email_relatorio(temp=ledger_temp)
                     ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
                     pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
