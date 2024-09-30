@@ -115,7 +115,7 @@ def email_relatorio(temp=None):
     smtp_port = 587
     subject = 'Oi chefe, aqui eh o Touring! Estou trazendo teu relatorio semanal :D'
     print('Preparando valores para envio da mensagem...')
-    semana = temp['Semana'].max()-1
+    semana = temp['Semana'].max()
     mask = temp['Semana'] == semana
     saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
     saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
@@ -380,6 +380,18 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                 fatia = saldos_iniciais['USD']/carteira_full
             else:
                 pass
+            # ENVIO DO RELATÓRIO SEMANAL, SE MUDOU A SEMANA
+            ledger_temp = pd.DataFrame(ledger)
+            if len(ledger_temp) <= 2:
+                pass
+            else:
+                if ((datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) == 1) & (ledger_temp.iloc[-1]['Mail'] == 0):
+                    print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
+                    email_relatorio(temp=ledger_temp)
+                    ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
+                    pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
+                else:
+                    pass
             # PROCESSAMENTO DE COMPRAS
             if historico.loc[(historico.shape[0]-1), 'sinal_est'] == 1:  # Sinal de Compra da estratégia
             # Verifica saldo em carteira. Se a carteira estiver vazia,
@@ -474,18 +486,6 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                 print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                 print(f'   --> Estratégia sem sinais de compra ou venda para o período, esperando.\n\n')
                 pass
-            # ENVIO DO RELATÓRIO SEMANAL, SE MUDOU A SEMANA
-            ledger_temp = pd.DataFrame(ledger)
-            if len(ledger_temp) <= 2:
-                pass
-            else:
-                if ((ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana'] - ledger_temp.loc[ledger_temp.shape[0]-2, 'Semana']) == 1) & (ledger_temp.iloc[-1]['Mail'] == 0):
-                    print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
-                    email_relatorio(temp=ledger_temp)
-                    ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
-                    pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
-                else:
-                    pass
     # Se o sistema da Binance retornar qualquer coisa diferente de 'normal':
     else:
         # Imprime os avisos no console
