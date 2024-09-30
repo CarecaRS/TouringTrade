@@ -124,26 +124,44 @@ def email_relatorio(temp=None):
     smtp_port = 587
     subject = 'Oi chefe, aqui eh o Touring! Estou trazendo teu relatorio semanal :D'
     print('Preparando valores para envio da mensagem...')
-    temp = temp.reset_index()
     semana = temp['Semana'].max()
     mask = temp['Semana'] == semana
     saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
     saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
     preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
     patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
-    var_estrategia = (patrimonio/temp.loc[mask, 'PatrimonioTotal'][0])-1
-    var_ativo = (preco_ticker/temp.loc[mask, 'ValorUnitario'][0])-1
+    variacoes = temp[mask]
+    var_estrategia = (patrimonio/variacoes.reset_index()['PatrimonioTotal'][0])-1
+    var_ativo = (preco_ticker/variacoes.reset_index()['ValorUnitario'][0])-1
     body = (f'Aqui eu trago seu resumo semanal de desempenho!\n\n\
             Patrimonio total hoje: US${round(patrimonio, 2)}\n\n\
             Ativo negociado: {ticker[:3]}\n\
             Rendimento da estrategia: {round(var_estrategia*100, 4)}%\n\
             Oscilacao do ativo: {round(var_ativo*100, 4)}%\n\
             Quantidade de trades na semana: {(temp.loc[mask]['CV'] == 'compra').sum()} COMPRAS e {(temp.loc[mask]['CV'] == 'venda').sum()} VENDAS.\n\n\
-            Desempenho total da estrategia (inicio 17/09/2024): {round(((patrimonio/temp['PatrimonioTotal'].loc[0])-1)*100, 4)}%\n\
-            Desempenho total do ativo (inicio 17/09/2024): {round(((preco_ticker/temp['ValorUnitario'].loc[0])-1)*100, 4)}%\n\n\
+            Desempenho total da estrategia (inicio 17/09/2024): {round(((patrimonio/temp['PatrimonioTotal'].reset_index().loc[0])-1)*100, 4)}%\n\
+            Desempenho total do ativo (inicio 17/09/2024): {round(((preco_ticker/temp['ValorUnitario'].reset_index().loc[0])-1)*100, 4)}%\n\n\
             Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
     message = (f'Subject: {subject}\n\n{body}')
     print('Enviando e-mail agora.')
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(email_personal, email_pwd)
+        smtp.sendmail(email_sender, email_personal, message)
+    print('E-mail enviado com sucesso.')
+
+
+# Notificação quando não é possível acessar a carteira na Binance
+def carteira_off():
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    subject = f'Touring: carteira Binance indisponível!'
+    body = (f'Por algum motivo não consegui acessar a carteira da Binance.\n\n\
+            Será que a internet caiu e trocou o IP?\n\
+            Favor verificar, até isso ser solucionado estou sem poder negociar =/\n\n\
+            No aguardo.')
+    message = (f'Subject: {subject}\n\n{body}')
+    print('Enviando e-mail sobre a impossibilidade...')
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.starttls()
         smtp.login(email_personal, email_pwd)
@@ -344,6 +362,16 @@ def estrategia_bitcoin(df=None, defasagem=6):
 # TOURING
 ###
 def touring(max_ordens=3, compra=None, venda=None, ticker=None):
+    # Verifica o acesso à carteira da Binance. Importante quando estiver
+    # rodando a partir de outro local que não o próprio PC. Se algo aconteceu
+    # e o Touring não conseguir acesso, ele avisa por e-mail.
+    try:
+        carteira, cliente, infos = carteira_binance()
+    except:
+        print('Não foi possível contectar à carteira da Binance.')
+        print('Favor verificar.')
+        carteira_off()
+        print('Abortando.')
     # Verifica a existência do arquivo de registro das operações passadas.
     # Se o arquivo 'livro_contabil.csv' não existir na pasta deste script
     # ele vai gerar um novo no momento do primeiro trade.
@@ -441,6 +469,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                  fatia=fatia)
                     print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                     print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
+                    print(f'Aguardando novo ciclo...')
                     # Faz o registro do ledger em arquivo local
                     pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
             # PROCESSAMENTO DE VENDAS
@@ -493,6 +522,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                     fatia=fatia)
                     # Faz o registro do ledger em arquivo local
                     pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
+                    print(f'Aguardando novo ciclo...')
             else:
                 print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                 print(f'   --> Estratégia sem sinais de compra ou venda para o período, esperando.\n\n')
@@ -532,6 +562,12 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
 #            Trading Area a partir daqui           #
 #                                                  #
 ####################################################
+#
+# TO-DO: faz um 'try' com a função carteira_binance() abaixo, se retornar erro envia um e-mail
+#        dizendo que não é possível acessar o sistema (Internet caiu?). Vai ser importante
+#        para quando o Touring rodar do Raspberry.
+#
+#
 # Primeiro de tudo, capta as informações da Binance
 carteira, cliente, infos = carteira_binance()
 #
@@ -560,3 +596,35 @@ infos['accountType']
 
 # Retorna o user ID na corretora
 infos['uid']
+
+
+    ledger_temp = pd.DataFrame(ledger)
+    temp = ledger_temp
+
+
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    subject = 'Oi chefe, aqui eh o Touring! Estou trazendo teu relatorio semanal :D'
+    print('Preparando valores para envio da mensagem...')
+    semana = temp['Semana'].max()
+    mask = temp['Semana'] == semana
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
+    preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
+    patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
+    variacoes = temp[mask]
+    var_estrategia = (patrimonio/variacoes.reset_index()['PatrimonioTotal'][0])-1
+    var_ativo = (preco_ticker/variacoes.reset_index()['ValorUnitario'][0])-1
+    body = (f'Aqui eu trago seu resumo semanal de desempenho!\n\n\
+            Patrimonio total hoje: US${round(patrimonio, 2)}\n\n\
+            Ativo negociado: {ticker[:3]}\n\
+            Rendimento da estrategia: {round(var_estrategia*100, 4)}%\n\
+            Oscilacao do ativo: {round(var_ativo*100, 4)}%\n\
+            Quantidade de trades na semana: {(temp.loc[mask]['CV'] == 'compra').sum()} COMPRAS e {(temp.loc[mask]['CV'] == 'venda').sum()} VENDAS.\n\n\
+            Desempenho total da estrategia (inicio 17/09/2024): {round(((patrimonio/temp['PatrimonioTotal'].reset_index().loc[0])-1)*100, 4)}%\n\
+            Desempenho total do ativo (inicio 17/09/2024): {round(((preco_ticker/temp['ValorUnitario'].reset_index().loc[0])-1)*100, 4)}%\n\n\
+            Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
+    message = (f'Subject: {subject}\n\n{body}')
+    print('Enviando e-mail agora.')
+    print('E-mail enviado com sucesso.')
+
