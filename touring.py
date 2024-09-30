@@ -124,6 +124,7 @@ def email_relatorio(temp=None):
     smtp_port = 587
     subject = 'Oi chefe, aqui eh o Touring! Estou trazendo teu relatorio semanal :D'
     print('Preparando valores para envio da mensagem...')
+    temp = temp.reset_index()
     semana = temp['Semana'].max()
     mask = temp['Semana'] == semana
     saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
@@ -394,9 +395,10 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             if len(ledger_temp) <= 2:
                 pass
             else:
-                if (('Semana': datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) == 1) & (ledger_temp.iloc[-1]['Mail'] == 0):
+                if ((datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) == 1) & (ledger_temp.iloc[-1]['Mail'] == 0):
                     print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
                     email_relatorio(temp=ledger_temp)
+                    ledger_temp = pd.DataFrame(ledger)
                     ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
                     pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
                 else:
