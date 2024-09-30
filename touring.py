@@ -292,6 +292,9 @@ def estrategia_bitcoin(df=None, defasagem=6):
     venda = []
     # Gera os sinais de compra
     for idx in df.index:
+        pm1h = ((df.loc[idx-4:idx]['low'] + df.loc[idx-4:idx]['high'])/2).mean()
+        pm2h = ((df.loc[idx-8:idx]['low'] + df.loc[idx-8:idx]['high'])/2).mean()
+        pm3h = ((df.loc[idx-12:idx]['low'] + df.loc[idx-12:idx]['high'])/2).mean()
         if idx >= defasagem:
             # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
             if ((df.loc[idx-4, 'open'] > df.loc[idx-3, 'open']) &
@@ -299,6 +302,9 @@ def estrategia_bitcoin(df=None, defasagem=6):
                     (df.loc[idx-2, 'open'] > df.loc[idx-1, 'open']) &
                     (df.loc[idx-1, 'open'] > df.loc[idx, 'open']) &
                     (df.loc[idx, 'mm672'] > df.loc[idx, 'mm24'])):
+                compra.append(False)
+            # Se a média dos preços estiver caindo nas últimas três horas, inibe compra
+            elif (pm3h > pm2h) & (pm2h > pm1h) & (pm1h > df.loc[idx, 'open']):
                 compra.append(False)
             else:
                 # Se o preço de fechamento anterior for menor ou igual ao mínimo dos últimos
@@ -326,8 +332,7 @@ def estrategia_bitcoin(df=None, defasagem=6):
         if idx >= defasagem:
             # Se o preço de fechamento estiver em baixa seguida na última hora e também
             # a MM curta estiver abaixo do preço de abertura, marca como venda
-            if ((df.loc[idx-5, 'close'] > df.loc[idx-4, 'close']) &
-                    (df.loc[idx-4, 'close'] > df.loc[idx-3, 'close']) &
+            if((df.loc[idx-4, 'close'] > df.loc[idx-3, 'close']) &
                     (df.loc[idx-3, 'close'] > df.loc[idx-2, 'close']) &
                     (df.loc[idx-2, 'close'] > df.loc[idx-1, 'close']) &
                     (df.loc[idx, 'open'] > df.loc[idx-1, 'mm24'])):

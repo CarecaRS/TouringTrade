@@ -623,30 +623,6 @@ infos['accountType']
 infos['uid']
 
 
-###
-# BACKTESTING
-#
-# Ativos de maior valor unitário Binance
-# BTCUSDT - bitcoin
-# ETHUSDT - ethereum
-# YFIUSDT - yearn.finance (?)
-#
-# Ativos de maior valor unitário CoinMarketCap
-# Bitcoin (BTC)
-# Tether Gold (XAUt)
-# Ethereum (ETH)
-# Maker (MKR)
-# BNB (BNB)
-###
-
-intervalo = 15
-historico = valores_historicos(dias=(20),
-                               intervalo=str(str(intervalo)+'m'),
-                               ticker='BTCUSDT')
-adiciona_indicadores(historico)
-historico = historico.dropna()
-historico = historico.reset_index()
-
 
 ###
 # Estratégia 1 - Boa para ETH
@@ -775,6 +751,34 @@ backtest_summary(thiago, max_ordens=ordens, grafico=False)
 # 7,83% sobre ETH, com 3 ordens
 # -40,28% em YIF
 
+###
+# BACKTESTING
+#
+# Ativos de maior valor unitário Binance
+# BTCUSDT - bitcoin
+# ETHUSDT - ethereum
+# YFIUSDT - yearn.finance (?)
+#
+# Ativos de maior valor unitário CoinMarketCap
+# Bitcoin (BTC)
+# Tether Gold (XAUt)
+# Ethereum (ETH)
+# Maker (MKR)
+# BNB (BNB)
+###
+
+intervalo = 15
+historico = valores_historicos(dias=(30),
+                               intervalo=str(str(intervalo)+'m'),
+                               ticker='BTCUSDT')
+adiciona_indicadores(historico)
+historico = historico.dropna()
+historico = historico.reset_index()
+#
+#
+teste_compra = []
+teste_venda = []
+defasagem = 6  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
 ##########################################################
 #                 Parâmetros de COMPRA:                  #
 # - Se o ativo estiver em queda na última hora, não      #
@@ -786,10 +790,11 @@ backtest_summary(thiago, max_ordens=ordens, grafico=False)
 #   e se a MM curta estiver acima da alta, compra;       #
 # - Qualquer coisa diferente disso, não compra.          #
 ##########################################################
-teste_compra = []
-teste_venda = []
-defasagem = 6  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+# TODO: testar registro de não-compra se o preço médio high-low das últimas N horas estiver caindo
 for idx in historico.index:
+    pm1h = ((historico.loc[idx-4:idx]['low'] + historico.loc[idx-4:idx]['high'])/2).mean()
+    pm2h = ((historico.loc[idx-8:idx]['low'] + historico.loc[idx-8:idx]['high'])/2).mean()
+    pm3h = ((historico.loc[idx-12:idx]['low'] + historico.loc[idx-12:idx]['high'])/2).mean()
     if idx >= defasagem:
         # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
         if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
@@ -798,29 +803,31 @@ for idx in historico.index:
                 (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
                 (historico.loc[idx, 'mm672'] > historico.loc[idx, 'mm24'])):
             teste_compra.append(False)
+        # Se a média dos preços estiver caindo nas últimas três horas, inibe compra
+        elif (pm3h > pm2h) & (pm2h > pm1h) & (pm1h > historico.loc[idx, 'open']):
+            teste_compra.append(False)
         else:
             if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
                 teste_compra.append(False)
             else:
-                teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+                teste_compra.append((historico.loc[(idx-1), 'high'] < historico.loc[idx, 'high']) &
                                     (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
     else:
         if idx >= 2:
-            teste_compra.append((historico.loc[(idx-2), 'high'] < historico.loc[idx, 'high']) &
+            teste_compra.append((historico.loc[(idx-1), 'high'] < historico.loc[idx, 'high']) &
                                 (historico.loc[idx, 'mm24'] > historico.loc[idx, 'mm672']))
         else:
             teste_compra.append(False)
 ##########################################################
 #                  Parâmetros de VENDA:                  #
-# - 4 períodos consecutivos em queda;                    #
+# - 3 períodos consecutivos em queda;                    #
 # - Preço de abertura em t menor do que a MM Curta em    #
 #   t-1.                                                 #
 ##########################################################
 for idx in historico.index:
     if idx >= defasagem:
         # Se o preço de fechamento estiver em baixa seguida na última hora marca como venda
-        if ((historico.loc[idx-5, 'close'] > historico.loc[idx-4, 'close']) &
-                (historico.loc[idx-4, 'close'] > historico.loc[idx-3, 'close']) &
+        if((historico.loc[idx-4, 'close'] > historico.loc[idx-3, 'close']) &
                 (historico.loc[idx-3, 'close'] > historico.loc[idx-2, 'close']) &
                 (historico.loc[idx-2, 'close'] > historico.loc[idx-1, 'close']) &
                 (historico.loc[idx, 'open'] > historico.loc[idx-1, 'mm24'])):
@@ -841,12 +848,5 @@ for idx in historico.index:
 ordens = 3
 thiago = backtest(historico, saldo_inicial=1000, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=False)
 
-historico
-
-thiago
-
-thiago.loc[3]
-
-email_relatorio(thiago)
-
 backtest_summary(thiago, max_ordens=ordens, grafico=True)
+
