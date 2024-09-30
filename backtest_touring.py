@@ -3,7 +3,6 @@ import pandas_datareader.data as web
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 import numpy as np
-# import binance.enums  # responsável pelo trading
 import datetime
 import requests
 import json
@@ -13,7 +12,7 @@ from binance.client import Client
 import smtplib
 # Importação da API da Binance e dados do e-mail
 # Isso tudo do arquivo local keys.py
-from keys import api_secret, api_key, email_sender, email_personal, email_pwd
+from keys import api_secret_backtest, api_key_backtest, email_sender, email_personal, email_pwd
 %autoindent OFF
 
 
@@ -360,7 +359,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                 status = 1
                 periodo.loc[idx, 'marcador'] = marcador
                 periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-                email_compra(periodo)
+#                email_compra(periodo)
                 print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Compra realizada!')
     # PROCESSAMENTO DE VENDAS
         elif periodo.loc[idx, 'sinal_est'] == -1:  # SINAL DE VENDA
@@ -379,7 +378,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                     periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
                     carteira_full += 1
                     print(f'Backtesting finalizado! ***  Zerando posições em fim de período  ***')
-                    email_venda(periodo)
+#                    email_venda(periodo)
                 else:
                     valor_medio = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].mean()
                     variacao = (periodo.loc[(idx + 1), 'close'] - valor_medio)/valor_medio
@@ -390,7 +389,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                     periodo.loc[idx, 'marcador'] = marcador*-1
                     periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
                     carteira_full += 1
-                    email_venda(periodo)
+#                    email_venda(periodo)
                     if carteira_full == max_ordens:
                         print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Todas posições zeradas!  ***')
                         marcador += 1
@@ -641,7 +640,7 @@ infos['uid']
 ###
 
 intervalo = 15
-historico = valores_historicos(dias=(8),
+historico = valores_historicos(dias=(20),
                                intervalo=str(str(intervalo)+'m'),
                                ticker='BTCUSDT')
 adiciona_indicadores(historico)
@@ -729,7 +728,7 @@ for idx in historico.index:
 ordens = 3
 thiago = backtest(historico, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=True)
 
-backtest_summary(thiago, max_ordens=ordens, grafico=True)
+backtest_summary(thiago, max_ordens=ordens, grafico=False)
 
 
 #
@@ -840,7 +839,7 @@ for idx in historico.index:
 
 
 ordens = 3
-thiago = backtest(historico, saldo_inicial=2000, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=False)
+thiago = backtest(historico, saldo_inicial=1000, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=False)
 
 historico
 

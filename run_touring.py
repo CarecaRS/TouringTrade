@@ -297,17 +297,17 @@ def estrategia_bitcoin(df=None, defasagem=6):
                 if (df.loc[idx-1, 'close'] <= df.loc[idx-defasagem:idx-1, 'close'].min()):
                     compra.append(False)
                 else:
-                    # Passada a verificação acima, se a máxima de dois períodos anteriores
+                    # Passada a verificação acima, se a máxima do período anterior
                     # estiver menor do que a máxima de agora E TAMBÉM a MM curta estiver
                     # maior que a MM longa, sinaliza compra
-                    compra.append((df.loc[(idx-2), 'high'] < df.loc[idx, 'high']) &
+                    compra.append((df.loc[(idx-1), 'high'] < df.loc[idx, 'high']) &
                                   (df.loc[idx, 'mm24'] > df.loc[idx, 'mm672']))
         else:
             if idx >= 2:
-                # Se a máxima de dois períodos anteriores estiver menor do que a máxima
+                # Se a máxima do período anterior estiver menor do que a máxima
                 # de agora (ou seja, preço está subindo) e também a MM curta esteja acima
                 # da MM longa, sinaliza compra
-                compra.append((df.loc[(idx-2), 'high'] < df.loc[idx, 'high']) &
+                compra.append((df.loc[(idx-1), 'high'] < df.loc[idx, 'high']) &
                               (df.loc[idx, 'mm24'] > df.loc[idx, 'mm672']))
             else:
                 # Outras situações diferentes do estabelecido, sinaliza 'não-compra'
@@ -323,6 +323,9 @@ def estrategia_bitcoin(df=None, defasagem=6):
                     (df.loc[idx-2, 'close'] > df.loc[idx-1, 'close']) &
                     (df.loc[idx, 'open'] > df.loc[idx-1, 'mm24'])):
                 venda.append(True)
+            # Se a MM média ficar abaixo da MM longa marca como venda
+            elif (df.loc[idx, 'mm192'] < df.loc[idx-1, 'mm672']):
+                teste_venda.append(True)
             else:
                 # Se não, registra 'não-venda'
                 venda.append(False)
@@ -404,7 +407,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             if len(ledger_temp) <= 2:
                 pass
             else:
-                if ((datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) == 1) & (ledger_temp.iloc[-1]['Mail'] == 0):
+                if (((datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) == 1) & (ledger_temp.iloc[-1]['Mail'] == 0)):
                     print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
                     email_relatorio(temp=ledger_temp)
                     ledger_temp = pd.DataFrame(ledger)

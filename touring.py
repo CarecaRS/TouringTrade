@@ -306,17 +306,17 @@ def estrategia_bitcoin(df=None, defasagem=6):
                 if (df.loc[idx-1, 'close'] <= df.loc[idx-defasagem:idx-1, 'close'].min()):
                     compra.append(False)
                 else:
-                    # Passada a verificação acima, se a máxima de dois períodos anteriores
+                    # Passada a verificação acima, se a máxima do período anterior
                     # estiver menor do que a máxima de agora E TAMBÉM a MM curta estiver
                     # maior que a MM longa, sinaliza compra
-                    compra.append((df.loc[(idx-2), 'high'] < df.loc[idx, 'high']) &
+                    compra.append((df.loc[(idx-1), 'high'] < df.loc[idx, 'high']) &
                                   (df.loc[idx, 'mm24'] > df.loc[idx, 'mm672']))
         else:
             if idx >= 2:
-                # Se a máxima de dois períodos anteriores estiver menor do que a máxima
+                # Se a máxima do período anterior estiver menor do que a máxima
                 # de agora (ou seja, preço está subindo) e também a MM curta esteja acima
                 # da MM longa, sinaliza compra
-                compra.append((df.loc[(idx-2), 'high'] < df.loc[idx, 'high']) &
+                compra.append((df.loc[(idx-1), 'high'] < df.loc[idx, 'high']) &
                               (df.loc[idx, 'mm24'] > df.loc[idx, 'mm672']))
             else:
                 # Outras situações diferentes do estabelecido, sinaliza 'não-compra'
