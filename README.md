@@ -42,3 +42,5 @@ Durante duas semanas eu fiquei rodando o Touring através de terminal ("python3 
 - Arquivo python `run_touring.py` com permissão de escrita (chmod +x) e copiado para o diretório /usr/bin
 
 Após editar e copiar os arquivos, se dá reload no system com `sudo systemctl daemon-reload`. Pode testar o serviço `touring.service` sem reiniciar o sistema, basta comandar `sudo systemctl start touring.service`. Para ver se está rodando certinho, `sudo systemctl status touring.service`. Para parar o serviço, `sudo systemctl stop touring.service`. E para inicialização e manter o bot sempre ativo: `sudo systemctl enable touring.service`.
+
+Por algum motivo essa função de rodar via daemon (não sei se é o termo correto) não funciona - no sentido de que testei para que o sistema me enviasse o e-mail de relatório semanal mas nada aconteceu. Então, pelo menos por enquanto, voltando a executar o Touring em um terminal e deixar rodando em algum workspace.
