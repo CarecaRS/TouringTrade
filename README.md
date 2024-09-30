@@ -22,4 +22,23 @@ O objeto `email_sender` seria para utilizar como remetente, mas nos meus testes 
 
 `email_pwd` é um password específico gerado através do Google, *NÃO É A SENHA DO PRÓPRIO E-MAIL*! Verificar passo a passo, se necessário, em https://support.google.com/accounts/answer/185833. E, sim, tem que utilizar os espaços entre os caracteres.
 
-Também é necessária a liberação por parte da Binance da conexão através do IP atual. Isso é configurado dentro das *Configurações de API* no dashboard da Binance.
+Também é necessária a liberação por parte da Binance da conexão através do IP atual. Isso é configurado dentro das **Configurações de API** no dashboard da Binance. Se por acaso o provedor de internet fornecer um IP dinâmico (o que é o padrão aqui no Brasil) e a internet cair por qualquer motivo ou faltar luz (pq aí a internet cai), precisa incluir na Binance o novo IP vigente.
+
+Durante duas semanas eu fiquei rodando o Touring através de terminal ("python3 run_touring.py"), a partir de 30/09 19:30 deixei ele rodando em background como service do Arch. Para isso é necessário:
+- Arquivo /etc/systemd/system/touring.service contendo:
+  - ```
+  [Unit]
+  Description=Touring Personal Crypto Trader
+  After=syslog.target network.target
+  [Service]
+  WorkingDirectory=/home/thiago
+  User=thiago
+  Environment='PYTHONPATH=/home/thiago/.pyenv/versions/3.12.3/lib/python3.12/site-packages/'
+  ExecStart=/usr/bin/run_touring.py
+  Restart=always
+  [Install]
+  WantedBy=multi-user.target
+  ```
+- Arquivo python `run_touring.py` com permissão de escrita (chmod +x) e copiado para o diretório /usr/bin
+
+Após editar e copiar os arquivos, se dá reload no system com `sudo systemctl daemon-reload`. Pode testar o serviço `touring.service` sem reiniciar o sistema, basta comandar `sudo systemctl start touring.service`. Para ver se está rodando certinho, `sudo systemctl status touring.service`. Para parar o serviço, `sudo systemctl stop touring.service`. E para inicialização e manter o bot sempre ativo: `sudo systemctl enable touring.service`.
