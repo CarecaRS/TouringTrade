@@ -353,16 +353,6 @@ def estrategia_bitcoin(df=None, defasagem=6):
 # TOURING
 ###
 def touring(max_ordens=3, compra=None, venda=None, ticker=None):
-    # Verifica o acesso à carteira da Binance. Importante quando estiver
-    # rodando a partir de outro local que não o próprio PC. Se algo aconteceu
-    # e o Touring não conseguir acesso, ele avisa por e-mail.
-    try:
-        carteira, cliente, infos = carteira_binance()
-    except:
-        print('Não foi possível contectar à carteira da Binance.')
-        print('Favor verificar.')
-        carteira_off()
-        print('Abortando.')
     # Verifica a existência do arquivo de registro das operações passadas.
     # Se o arquivo 'livro_contabil.csv' não existir na pasta deste script
     # ele vai gerar um novo no momento do primeiro trade.
@@ -553,6 +543,17 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
 #            Trading Area a partir daqui           #
 #                                                  #
 ####################################################
+
+# Verifica o acesso à carteira da Binance. Importante quando estiver
+# rodando a partir de outro local que não o próprio PC. Se algo aconteceu
+# e o Touring não conseguir acesso, ele avisa por e-mail.
+try:
+    carteira, cliente, infos = carteira_binance()
+except:
+    print('Não foi possível contectar à carteira da Binance.')
+    print('Favor verificar.\n')
+    carteira_off()
+    print('\n\nAbortando.')
 
 # O ticker é a moeda (ou o par de moedas, no caso da Binance) que está se negociando
 ticker = 'BTCUSDT'  # Aqui, BTC adquirido/comprado com USDT
