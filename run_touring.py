@@ -6,14 +6,12 @@ import math  # necessário para as ordens da Binance
 import json  # Histórico dos ativos
 import time  # Necessário para o Touring (time.sleep())
 import pandas_ta  # Calcula os indicadores de tendência
-import os
 from binance.client import Client  # Binance
 import smtplib  # necessário para o e-mail
 # Abaixo: importação da API da Binance e dados do e-mail
 # Isso tudo do arquivo local keys.py
 from keys import api_secret_trade, api_key_trade, email_sender, email_personal, email_pwd
 
-os.chdir('/home/thiago/Documentos/TouringTrade/')
 ####################################################
 #                                                  #
 #   Definição das funções utilizadas pelo Touring   #
@@ -147,10 +145,10 @@ def email_relatorio(temp=None):
 def carteira_off():
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    subject = f'Touring: carteira Binance indisponível!'
-    body = (f'Por algum motivo não consegui acessar a carteira da Binance.\n\n\
-            Será que a internet caiu e trocou o IP?\n\
-            Favor verificar, até isso ser solucionado estou sem poder negociar =/\n\n\
+    subject = f'Touring: carteira Binance indisponivel!'
+    body = (f'Por algum motivo nao consegui acessar a carteira da Binance.\n\n\
+            Sera que a internet caiu e trocou o IP?\n\
+            Favor verificar, ate isso ser solucionado estou sem poder negociar =/\n\n\
             No aguardo.')
     message = (f'Subject: {subject}\n\n{body}')
     print('Enviando e-mail sobre a impossibilidade...')

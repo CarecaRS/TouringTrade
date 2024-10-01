@@ -155,10 +155,10 @@ def email_relatorio(temp=None):
 def carteira_off():
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    subject = f'Touring: carteira Binance indisponível!'
-    body = (f'Por algum motivo não consegui acessar a carteira da Binance.\n\n\
-            Será que a internet caiu e trocou o IP?\n\
-            Favor verificar, até isso ser solucionado estou sem poder negociar =/\n\n\
+    subject = f'Touring: carteira Binance indisponivel!'
+    body = (f'Por algum motivo nao consegui acessar a carteira da Binance.\n\n\
+            Sera que a internet caiu e trocou o IP?\n\
+            Favor verificar, ate isso ser solucionado estou sem poder negociar =/\n\n\
             No aguardo.')
     message = (f'Subject: {subject}\n\n{body}')
     print('Enviando e-mail sobre a impossibilidade...')
