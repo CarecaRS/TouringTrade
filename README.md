@@ -26,7 +26,7 @@ Também é necessária a liberação por parte da Binance da conexão através d
 
 Durante duas semanas eu fiquei rodando o Touring através de terminal ("python3 run_touring.py"), a partir de 30/09 19:30 deixei ele rodando em background como service do Arch. Para isso é necessário:
 - Arquivo /etc/systemd/system/touring.service contendo:
-  - ```
+   ```
   [Unit]
   Description=Touring Personal Crypto Trader
   After=syslog.target network.target
