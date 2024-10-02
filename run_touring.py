@@ -408,7 +408,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             if len(ledger_temp) <= 2:
                 pass
             else:
-                if (((datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) == 1) & (ledger_temp.iloc[-1]['Mail'] == 0)):
+                if (((datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) != 0) & (ledger_temp.iloc[-1]['Mail'] == 0)):
                     print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
                     email_relatorio(temp=ledger_temp)
                     ledger_temp = pd.DataFrame(ledger)
