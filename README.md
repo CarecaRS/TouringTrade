@@ -24,7 +24,7 @@ O objeto `email_sender` seria para utilizar como remetente, mas nos meus testes 
 
 Também é necessária a liberação por parte da Binance da conexão através do IP atual. Isso é configurado dentro das **Configurações de API** no dashboard da Binance. Se por acaso o provedor de internet fornecer um IP dinâmico (o que é o padrão aqui no Brasil) e a internet cair por qualquer motivo ou faltar luz (pq aí a internet cai), precisa incluir na Binance o novo IP vigente.
 
-Durante duas semanas eu fiquei rodando o Touring através de terminal ("python3 run_touring.py"), a partir de 30/09 19:30 deixei ele rodando em background como service do Arch. Para isso é necessário:
+Durante duas semanas eu fiquei rodando o Touring através de terminal ("python3 run_touring.py"), então tentei deixara ele rodando em background como service do Arch. Para isso é necessário:
 - Arquivo /etc/systemd/system/touring.service contendo:
    ```
   [Unit]
@@ -40,6 +40,8 @@ Durante duas semanas eu fiquei rodando o Touring através de terminal ("python3 
   WantedBy=multi-user.target
   ```
 - Arquivo python `run_touring.py` com permissão de escrita (chmod +x) e copiado para o diretório /usr/bin
+
+Após N tentativas não consegui fazer funcionar o sistema através dos services do Arch, problemas com importação dos módulos do Python. Sem contar que a rede elétrica é bem instável em Niterói, então se a luz cair e retornar isso faz com que o provedor de internet troque o endereço IP de acesso, inibindo a comunicação da API da Binance. Sendo assim, troquei a estratégia.
 
 O script é rodado em cloud (AWS atualmente - 02/10/2024), de forma muito simples se valendo do comando `nohup`, conforme segue abaixo.
 
