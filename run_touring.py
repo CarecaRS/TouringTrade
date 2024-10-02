@@ -510,7 +510,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                     print(f'Aguardando novo ciclo...')
             else:
                 print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                print(f'   --> Estratégia sem sinais de compra ou sem saldo para venda no período, esperando.\n\n')
+                print(f'   --> Estratégia sem sinais de compra/venda ou sem saldo para venda no período, esperando.\n\n')
                 pass
     # Se o sistema da Binance retornar qualquer coisa diferente de 'normal':
     else:
