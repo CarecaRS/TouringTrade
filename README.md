@@ -41,6 +41,18 @@ Durante duas semanas eu fiquei rodando o Touring através de terminal ("python3 
   ```
 - Arquivo python `run_touring.py` com permissão de escrita (chmod +x) e copiado para o diretório /usr/bin
 
-Após editar e copiar os arquivos, se dá reload no system com `sudo systemctl daemon-reload`. Pode testar o serviço `touring.service` sem reiniciar o sistema, basta comandar `sudo systemctl start touring.service`. Para ver se está rodando certinho, `sudo systemctl status touring.service`. Para parar o serviço, `sudo systemctl stop touring.service`. E para inicialização e manter o bot sempre ativo: `sudo systemctl enable touring.service`.
+O script é rodado em cloud (AWS atualmente - 02/10/2024), de forma muito simples se valendo do comando `nohup`, conforme segue abaixo.
 
-Por algum motivo essa função de rodar via daemon (não sei se é o termo correto) não funciona - no sentido de que testei para que o sistema me enviasse o e-mail de relatório semanal mas nada aconteceu. Então, pelo menos por enquanto, voltando a executar o Touring em um terminal e deixar rodando em algum workspace.
+> nohup python3 -u run_touring.py &
+
+O acesso à cloud AWS é feito através de SSH:
+> ssh -i 'TouringKeyPair.pem' ubuntu@[endereco].compute.amazonaws.com
+
+O arquivo `TouringKeyPair.pem` e o endereço de acesso (todo o comando para acesso SSH, na realidade) é fornecido pelo sistema da AWS.
+
+O output de cada print realizado pelo sistema (verbose a cada 15min, por exemplo) fica armazenado no arquivo `nohup.out`. Para verificar os últimos movimentos, basta comandar um `tail nohup.out` que o sistema retorna as últimas impressões armazenadas no referido arquivo.
+
+Para o cancelamento do script, busca-se o id do processo com:
+> ps aux | grep python3
+
+E então mata-se o processo com `kill [id processo]`.
