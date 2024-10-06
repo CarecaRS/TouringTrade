@@ -166,7 +166,7 @@ def erro_compra():
     subject = f'Touring: erro no processamento de compra!'
     body = (f'Por algum motivo nao consegui comprar {qtde} {ticker[:3]}s.\n\n\
             Precisa ver o quanto antes, pois podemos perder a tendencia.\n\n\
-            *ACHO* que eu sigo de olho nos movimentos, se for so esse e-mail recebido e eu consegui comprar depois, menos mal.\n
+            *ACHO* que eu sigo de olho nos movimentos, se for so esse e-mail recebido e eu consegui comprar depois, menos mal.\n\
             Mas vale a pena dar uma olhada no meu log e tambem no ledger.\n\n\
             No aguardo.')
     message = (f'Subject: {subject}\n\n{body}')
@@ -184,7 +184,7 @@ def erro_venda():
     subject = f'Touring: erro no processamento de venda!'
     body = (f'Por algum motivo nao consegui vender {qtde} {ticker[:3]}s.\n\n\
             Precisa ver o quanto antes, pois podemos perder a tendencia.\n\n\
-            *ACHO* que eu sigo de olho nos movimentos, se for so esse e-mail recebido e eu consegui comprar depois, menos mal.\n
+            *ACHO* que eu sigo de olho nos movimentos, se for so esse e-mail recebido e eu consegui comprar depois, menos mal.\n\
             Mas vale a pena dar uma olhada no meu log e tambem no ledger.\n\n\
             No aguardo.')
     message = (f'Subject: {subject}\n\n{body}')
