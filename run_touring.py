@@ -159,6 +159,43 @@ def carteira_off():
     print('E-mail enviado com sucesso.')
 
 
+# Notificação quando deu algum erro de compra
+def erro_compra():
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    subject = f'Touring: erro no processamento de compra!'
+    body = (f'Por algum motivo nao consegui comprar {qtde} {ticker[:3]}s.\n\n\
+            Precisa ver o quanto antes, pois podemos perder a tendencia.\n\n\
+            *ACHO* que eu sigo de olho nos movimentos, se for so esse e-mail recebido e eu consegui comprar depois, menos mal.\n
+            Mas vale a pena dar uma olhada no meu log e tambem no ledger.\n\n\
+            No aguardo.')
+    message = (f'Subject: {subject}\n\n{body}')
+    print('=== Enviando e-mail sobre erro de compra ===')
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(email_personal, email_pwd)
+        smtp.sendmail(email_sender, email_personal, message)
+    print('E-mail enviado com sucesso.')
+
+# Notificação quando deu algum erro de venda
+def erro_venda():
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    subject = f'Touring: erro no processamento de venda!'
+    body = (f'Por algum motivo nao consegui vender {qtde} {ticker[:3]}s.\n\n\
+            Precisa ver o quanto antes, pois podemos perder a tendencia.\n\n\
+            *ACHO* que eu sigo de olho nos movimentos, se for so esse e-mail recebido e eu consegui comprar depois, menos mal.\n
+            Mas vale a pena dar uma olhada no meu log e tambem no ledger.\n\n\
+            No aguardo.')
+    message = (f'Subject: {subject}\n\n{body}')
+    print('=== Enviando e-mail sobre erro de venda ===')
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(email_personal, email_pwd)
+        smtp.sendmail(email_sender, email_personal, message)
+    print('E-mail enviado com sucesso.')
+
+
 ###
 # ACESSO AO SISTEMA DA BINANCE
 ###
@@ -259,17 +296,17 @@ def ordem_venda(ticker=None, quantity=None):
 # - Os que estão comentados não são utilizados até o presente momento
 ###
 def adiciona_indicadores(df, periodo=20):
-    print('Calculando indicadores de TENDENCIA:')
+    print('Calculando indicadores...')
     # Média Móvel curta (24 - 6 horas) (TENDENCIA)
-    print('       Média móvel curta (6 horas)')
+#    print('       Média móvel curta (6 horas)')
     df['mm24'] = pandas_ta.sma(df['close'], length=24)
     # Média Móvel média (192 - 2 dias) (TENDENCIA)
-    print('       Média móvel média (2 dias)')
+#    print('       Média móvel média (2 dias)')
     df['mm192'] = pandas_ta.sma(df['close'], length=192)
     # Média Móvel longa (672 - 7 dias) (TENDENCIA)
-    print('       Média móvel longa (1 semana)')
+#    print('       Média móvel longa (1 semana)')
     df['mm672'] = pandas_ta.sma(df['close'], length=672)
-    print('Informações adicionadas ao dataframe com sucesso.')
+    print('Indicadores calculados e informações adicionadas ao dataframe com sucesso.')
 
 
 ###
@@ -431,7 +468,10 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                         marcador += 1
                     else:
                         pass
-                    ordem_compra(ticker=ticker, quantity=qtde)
+                    try:
+                        ordem_compra(ticker=ticker, quantity=qtde)
+                    except:
+                        erro_compra()
                     cv = 'compra'
                     # Cria o registro em ledger
                     ledger.append({'Data': datetime.datetime.now(),
@@ -463,13 +503,19 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                     pass
                 else:
                     # Se a quantia em carteira for maior ou igual que o mantante calculado na fatia, segue normal
-                    if carteira[carteira['asset'] == ticker[:3]]['free'].sum() >= qtde:                    
-                        ordem_venda(ticker=ticker, quantity=qtde)
+                    if carteira[carteira['asset'] == ticker[:3]]['free'].sum() >= qtde:
+                        try:
+                            ordem_venda(ticker=ticker, quantity=qtde)
+                        except:
+                            erro_venda()
                     # Se a quantia em carteira for menor que o montante de fatia, recalcula e vende o que tem
                     else:
-                        qtde = carteira[carteira['asset'] == ticker[:3]]['free'].sum() # Resgata o valor total de BTCs em carteira
-                        qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo para venda
-                        ordem_venda(ticker=ticker, quantity=qtde)
+                        try:
+                            qtde = carteira[carteira['asset'] == ticker[:3]]['free'].sum() # Resgata o valor total de BTCs em carteira
+                            qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo para venda
+                            ordem_venda(ticker=ticker, quantity=qtde)
+                        except:
+                            erro_venda()
                     cv = 'venda'
                     print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                     print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.\n\n')
