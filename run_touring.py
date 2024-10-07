@@ -472,6 +472,31 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                     if saldo_usd >= fatia:
                         try:
                             ordem_compra(ticker=ticker, quantity=qtde)
+                            cv = 'compra'
+                            # Cria o registro em ledger
+                            ledger.append({'Data': datetime.datetime.now(),
+                                           'Semana': datetime.datetime.now().isocalendar()[1],
+                                           'Ativo': ticker[:3],
+                                           'CV': cv,
+                                           'Marcador': marcador,
+                                           'ValorUnitario': round(preco_ticker, 2),
+                                           'Quantia': '{:.5f}'.format(qtde),
+                                           'ValorNegociado': round(fatia, 2),
+                                           'PatrimonioTotal': round(patrimonio, 2),
+                                           'Mail': 0})
+                            # Informa por e-mail da compra
+                            email_compra(saldos_iniciais=saldos_iniciais,
+                                         saldo_usd=saldo_usd,
+                                         saldo_ticker=saldo_ticker,
+                                         preco_ticker=preco_ticker,
+                                         patrimonio=patrimonio,
+                                         qtde=qtde,
+                                         fatia=fatia)
+                            print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                            print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
+                            # Faz o registro do ledger em arquivo local
+                            pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
+                            print(f'Aguardando novo ciclo...')
                         except:
                             erro_compra(qtde=qtde, ticker=ticker)
                     # Se a quantia em carteira for menor que o montante de fatia, recalcula e vende o que tem
@@ -480,34 +505,37 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                             fatia = saldo_usd
                             qtde = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
                             qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo em cada ordem
+                            qtde = qtde*100000
+                            qtde = round(qtde)
+                            qtde = qtde/100000
                             ordem_compra(ticker=ticker, quantity=qtde)
+                            cv = 'compra'
+                            # Cria o registro em ledger
+                            ledger.append({'Data': datetime.datetime.now(),
+                                           'Semana': datetime.datetime.now().isocalendar()[1],
+                                           'Ativo': ticker[:3],
+                                           'CV': cv,
+                                           'Marcador': marcador,
+                                           'ValorUnitario': round(preco_ticker, 2),
+                                           'Quantia': '{:.5f}'.format(qtde),
+                                           'ValorNegociado': round(fatia, 2),
+                                           'PatrimonioTotal': round(patrimonio, 2),
+                                           'Mail': 0})
+                            # Informa por e-mail da compra
+                            email_compra(saldos_iniciais=saldos_iniciais,
+                                         saldo_usd=saldo_usd,
+                                         saldo_ticker=saldo_ticker,
+                                         preco_ticker=preco_ticker,
+                                         patrimonio=patrimonio,
+                                         qtde=qtde,
+                                         fatia=fatia)
+                            print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                            print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
+                            # Faz o registro do ledger em arquivo local
+                            pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
+                            print(f'Aguardando novo ciclo...')
                         except:
                             erro_compra(qtde=qtde, ticker=ticker)
-                    cv = 'compra'
-                    # Cria o registro em ledger
-                    ledger.append({'Data': datetime.datetime.now(),
-                                   'Semana': datetime.datetime.now().isocalendar()[1],
-                                   'Ativo': ticker[:3],
-                                   'CV': cv,
-                                   'Marcador': marcador,
-                                   'ValorUnitario': round(preco_ticker, 2),
-                                   'Quantia': '{:.5f}'.format(qtde),
-                                   'ValorNegociado': round(fatia, 2),
-                                   'PatrimonioTotal': round(patrimonio, 2),
-                                   'Mail': 0})
-                    # Informa por e-mail da compra
-                    email_compra(saldos_iniciais=saldos_iniciais,
-                                 saldo_usd=saldo_usd,
-                                 saldo_ticker=saldo_ticker,
-                                 preco_ticker=preco_ticker,
-                                 patrimonio=patrimonio,
-                                 qtde=qtde,
-                                 fatia=fatia)
-                    print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                    print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
-                    # Faz o registro do ledger em arquivo local
-                    pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
-                    print(f'Aguardando novo ciclo...')
             # PROCESSAMENTO DE VENDAS
             elif historico.loc[(historico.shape[0]-1), 'sinal_est'] == -1:  # Sinal de Venda da estratégia
                 if carteira_full == max_ordens:  # SE CARTEIRA 100% CHEIA DE GRANA, NÃO TEM O QUE VENDER
