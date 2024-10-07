@@ -447,10 +447,10 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             else:
                 if (((datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) != 0) & (ledger_temp.iloc[-1]['Mail'] == 0)):
                     print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
-                    email_relatorio(temp=ledger_temp)
                     ledger_temp = pd.DataFrame(ledger)
                     ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
                     pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
+                    email_relatorio(temp=ledger_temp)
                 else:
                     pass
             # PROCESSAMENTO DE COMPRAS
@@ -468,10 +468,21 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                         marcador += 1
                     else:
                         pass
-                    try:
-                        ordem_compra(ticker=ticker, quantity=qtde)
-                    except:
-                        erro_compra()
+                    # Se a quantia em carteira for maior ou igual que o mantante calculado na fatia, segue normal
+                    if carteira[carteira['asset'] == 'USDT'].sum() >= fatia:
+                        try:
+                            ordem_compra(ticker=ticker, quantity=qtde)
+                        except:
+                            erro_compra()
+                    # Se a quantia em carteira for menor que o montante de fatia, recalcula e vende o que tem
+                    else:
+                        try:
+                            fatia = carteira[carteira['asset'] == 'USDT'].sum()
+                            qtde = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
+                            qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo em cada ordem
+                            ordem_compra(ticker=ticker, quantity=qtde)
+                        except:
+                            erro_compra()
                     cv = 'compra'
                     # Cria o registro em ledger
                     ledger.append({'Data': datetime.datetime.now(),
