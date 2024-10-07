@@ -16,7 +16,7 @@ from keys import api_secret_trade, api_key_trade, email_sender, email_personal, 
 #                                                  #
 #   Definição das funções utilizadas pelo Touring   #
 #                                                  #
-####################################################
+#S##################################################
 
 ###
 # NOTIFICAÇÕES POR E-MAIL
@@ -160,7 +160,7 @@ def carteira_off():
 
 
 # Notificação quando deu algum erro de compra
-def erro_compra():
+def erro_compra(qtde=qtde, ticker='BTCUSDT'):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
     subject = f'Touring: erro no processamento de compra!'
@@ -178,7 +178,7 @@ def erro_compra():
     print('E-mail enviado com sucesso.')
 
 # Notificação quando deu algum erro de venda
-def erro_venda():
+def erro_venda(qtde=qtde, ticker='BTCUSDT'):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
     subject = f'Touring: erro no processamento de venda!'
@@ -469,20 +469,20 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                     else:
                         pass
                     # Se a quantia em carteira for maior ou igual que o mantante calculado na fatia, segue normal
-                    if carteira[carteira['asset'] == 'USDT'].sum() >= fatia:
+                    if saldo_usd >= fatia:
                         try:
                             ordem_compra(ticker=ticker, quantity=qtde)
                         except:
-                            erro_compra()
+                            erro_compra(qtde=qtde, ticker=ticker)
                     # Se a quantia em carteira for menor que o montante de fatia, recalcula e vende o que tem
                     else:
                         try:
-                            fatia = carteira[carteira['asset'] == 'USDT'].sum()
+                            fatia = saldo_usd
                             qtde = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
                             qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo em cada ordem
                             ordem_compra(ticker=ticker, quantity=qtde)
                         except:
-                            erro_compra()
+                            erro_compra(qtde=qtde, ticker=ticker)
                     cv = 'compra'
                     # Cria o registro em ledger
                     ledger.append({'Data': datetime.datetime.now(),
@@ -518,7 +518,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                         try:
                             ordem_venda(ticker=ticker, quantity=qtde)
                         except:
-                            erro_venda()
+                            erro_venda(qtde=qtde, ticker=ticker)
                     # Se a quantia em carteira for menor que o montante de fatia, recalcula e vende o que tem
                     else:
                         try:
@@ -526,7 +526,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                             qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo para venda
                             ordem_venda(ticker=ticker, quantity=qtde)
                         except:
-                            erro_venda()
+                            erro_venda(qtde=qtde, ticker=ticker)
                     cv = 'venda'
                     print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                     print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.\n\n')
