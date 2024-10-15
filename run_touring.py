@@ -16,7 +16,7 @@ from keys import api_secret_trade, api_key_trade, email_sender, email_personal, 
 #                                                  #
 #   Definição das funções utilizadas pelo Touring   #
 #                                                  #
-#S##################################################
+####################################################
 
 ###
 # NOTIFICAÇÕES POR E-MAIL
@@ -129,8 +129,6 @@ def email_relatorio(temp=None):
             Rendimento da estrategia: {round(var_estrategia*100, 4)}%\n\
             Oscilacao do ativo: {round(var_ativo*100, 4)}%\n\
             Quantidade de trades na semana: {(temp.loc[mask]['CV'] == 'compra').sum()} COMPRAS e {(temp.loc[mask]['CV'] == 'venda').sum()} VENDAS.\n\n\
-            Desempenho total da estrategia (inicio 17/09/2024): {round(((patrimonio/temp['PatrimonioTotal'][0])-1)*100, 4)}%\n\
-            Desempenho total do ativo (inicio 17/09/2024): {round(((preco_ticker/temp['ValorUnitario'][0])-1)*100, 4)}%\n\n\
             Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
     message = (f'Subject: {subject}\n\n{body}')
     print('Enviando e-mail agora.')
@@ -160,7 +158,7 @@ def carteira_off():
 
 
 # Notificação quando deu algum erro de compra
-def erro_compra(qtde=qtde, ticker='BTCUSDT'):
+def erro_compra(qtde=None, ticker='BTCUSDT'):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
     subject = f'Touring: erro no processamento de compra!'
@@ -178,7 +176,7 @@ def erro_compra(qtde=qtde, ticker='BTCUSDT'):
     print('E-mail enviado com sucesso.')
 
 # Notificação quando deu algum erro de venda
-def erro_venda(qtde=qtde, ticker='BTCUSDT'):
+def erro_venda(qtde=None, ticker='BTCUSDT'):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
     subject = f'Touring: erro no processamento de venda!'
@@ -394,14 +392,6 @@ def estrategia_bitcoin(df=None, defasagem=6):
 # TOURING
 ###
 def touring(max_ordens=3, compra=None, venda=None, ticker=None):
-    # Verifica a existência do arquivo de registro das operações passadas.
-    # Se o arquivo 'livro_contabil.csv' não existir na pasta deste script
-    # ele vai gerar um novo no momento do primeiro trade.
-    try:
-        ledger = pd.read_csv('livro_contabil.csv')
-        ledger = ledger.to_dict(orient='records')
-    except:
-        ledger = []
     marcador = 1  # Apenas para controle de ledger e zeramento de carteira
     print('\nAguardando o tempo certo para a primeira interação...\n')
     while cliente.get_system_status()['msg'] == 'normal':
@@ -412,6 +402,14 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
         while (datetime.datetime.now().strftime('%M:%S') in ('15:00', '30:00', '45:00', '00:00')) == False:
             time.sleep(1)
         else:
+            # Verifica a existência do arquivo de registro das operações passadas.
+            # Se o arquivo 'livro_contabil.csv' não existir na pasta deste script
+            # ele vai gerar um novo no momento do primeiro trade.
+            try:
+                ledger = pd.read_csv('livro_contabil.csv')
+                ledger = ledger.to_dict(orient='records')
+            except:
+                ledger = []
             # faz verificação do sinal da Binance, se não estiver normal retorna erro (depois do último 'else' lá embaixo)
             print('Atingido checkpoint de tempo, verificando...')
             print('Binance online, realizando nova análise de trading.\n')
@@ -454,6 +452,9 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                 else:
                     pass
             # PROCESSAMENTO DE COMPRAS
+#            print('Apenas review da última linha, apagar isso depois:')
+#            print(historico.loc[(historico.shape[0]-1)])
+#            print('\n\nÉ isso. "sinal_est" tem que ser 1 (compra), -1 (venda) ou 0 (sem instrução). Tudo certo?\n\n')
             if historico.loc[(historico.shape[0]-1), 'sinal_est'] == 1:  # Sinal de Compra da estratégia
             # Verifica saldo em carteira. Se a carteira estiver vazia,
             # não tem recurso para comprar, então nem verifica os sinais
@@ -468,7 +469,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                         marcador += 1
                     else:
                         pass
-                    # Se a quantia em carteira for maior ou igual que o mantante calculado na fatia, segue normal
+                    # Se o saldo para compra na carteira for maior ou igual que o necessário calculado na fatia, segue normal
                     if saldo_usd >= fatia:
                         try:
                             ordem_compra(ticker=ticker, quantity=qtde)
@@ -485,27 +486,27 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                            'PatrimonioTotal': round(patrimonio, 2),
                                            'Mail': 0})
                             # Informa por e-mail da compra
-                            email_compra(saldos_iniciais=saldos_iniciais,
-                                         saldo_usd=saldo_usd,
-                                         saldo_ticker=saldo_ticker,
-                                         preco_ticker=preco_ticker,
-                                         patrimonio=patrimonio,
-                                         qtde=qtde,
-                                         fatia=fatia)
+#                            email_compra(saldos_iniciais=saldos_iniciais,
+#                                         saldo_usd=saldo_usd,
+#                                         saldo_ticker=saldo_ticker,
+#                                         preco_ticker=preco_ticker,
+#                                         patrimonio=patrimonio,
+#                                         qtde=qtde,
+#                                         fatia=fatia)
                             print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                             print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
                             # Faz o registro do ledger em arquivo local
                             pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
-                            print(f'Aguardando novo ciclo...')
+                            print(f'Aguardando novo ciclo...\n\n')
                         except:
                             erro_compra(qtde=qtde, ticker=ticker)
-                    # Se a quantia em carteira for menor que o montante de fatia, recalcula e vende o que tem
+                    # Se o saldo em carteira for menor que o montante de fatia, recalcula e compra o que tem
                     else:
                         try:
-                            fatia = saldo_usd
+                            fatia = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
                             qtde = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
                             qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo em cada ordem
-                            qtde = qtde*100000  # Às vezes o arrendondamento acima não fica 100%, então forço um arrendondamento novamente aqui
+                            qtde = qtde*100000
                             qtde = round(qtde)
                             qtde = qtde/100000
                             ordem_compra(ticker=ticker, quantity=qtde)
@@ -522,18 +523,18 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                            'PatrimonioTotal': round(patrimonio, 2),
                                            'Mail': 0})
                             # Informa por e-mail da compra
-                            email_compra(saldos_iniciais=saldos_iniciais,
-                                         saldo_usd=saldo_usd,
-                                         saldo_ticker=saldo_ticker,
-                                         preco_ticker=preco_ticker,
-                                         patrimonio=patrimonio,
-                                         qtde=qtde,
-                                         fatia=fatia)
+ #                           email_compra(saldos_iniciais=saldos_iniciais,
+ #                                        saldo_usd=saldo_usd,
+ #                                        saldo_ticker=saldo_ticker,
+ #                                        preco_ticker=preco_ticker,
+ #                                        patrimonio=patrimonio,
+ #                                        qtde=qtde,
+ #                                        fatia=fatia)
                             print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                             print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
                             # Faz o registro do ledger em arquivo local
                             pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
-                            print(f'Aguardando novo ciclo...')
+                            print(f'Aguardando novo ciclo...\n\n')
                         except:
                             erro_compra(qtde=qtde, ticker=ticker)
             # PROCESSAMENTO DE VENDAS
@@ -565,24 +566,25 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                 print(f'\n\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                                 print('   --> ***  Todas posições zeradas!  ***\n\n')
                                 # O email não muda praticamente nada, só a informação de ativo zerado
-                                email_venda_zerado(saldos_iniciais=saldos_iniciais,
-                                                   saldo_usd=saldo_usd,
-                                                   saldo_ticker=saldo_ticker,
-                                                   preco_ticker=preco_ticker,
-                                                   patrimonio=patrimonio,
-                                                   qtde=qtde,
-                                                   fatia=fatia)
+  #                              email_venda_zerado(saldos_iniciais=saldos_iniciais,
+  #                                                 saldo_usd=saldo_usd,
+  #                                                 saldo_ticker=saldo_ticker,
+  #                                                 preco_ticker=preco_ticker,
+  #                                                 patrimonio=patrimonio,
+  #                                                 qtde=qtde,
+  #                                                 fatia=fatia)
                             else:
-                                email_venda(saldos_iniciais=saldos_iniciais,
-                                            saldo_usd=saldo_usd,
-                                            saldo_ticker=saldo_ticker,
-                                            preco_ticker=preco_ticker,
-                                            patrimonio=patrimonio,
-                                            qtde=qtde,
-                                            fatia=fatia)
+                                pass
+  #                              email_venda(saldos_iniciais=saldos_iniciais,
+  #                                          saldo_usd=saldo_usd,
+  #                                          saldo_ticker=saldo_ticker,
+  #                                          preco_ticker=preco_ticker,
+  #                                          patrimonio=patrimonio,
+  #                                          qtde=qtde,
+  #                                          fatia=fatia)
                             # Faz o registro do ledger em arquivo local
                             pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
-                            print(f'Aguardando novo ciclo...')
+                            print(f'Aguardando novo ciclo...\n\n')
                         except:
                             erro_venda(qtde=qtde, ticker=ticker)
                     # Se a quantia em carteira for menor que o montante de fatia, recalcula e vende o que tem
@@ -590,6 +592,9 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                         try:
                             qtde = carteira[carteira['asset'] == ticker[:3]]['free'].sum() # Resgata o valor total de BTCs em carteira
                             qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo para venda
+                            qtde = qtde*100000  # O arredondamento acima pode ter erro de cálculo na 10a casa decimal
+                            qtde = round(qtde)  # Procede com um novo arredondamento para evitar problemas
+                            qtde = qtde/100000
                             ordem_venda(ticker=ticker, quantity=qtde)
                             cv = 'venda'
                             print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
@@ -611,24 +616,25 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                                 print(f'\n\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                                 print('   --> ***  Todas posições zeradas!  ***\n\n')
                                 # O email não muda praticamente nada, só a informação de ativo zerado
-                                email_venda_zerado(saldos_iniciais=saldos_iniciais,
-                                                   saldo_usd=saldo_usd,
-                                                   saldo_ticker=saldo_ticker,
-                                                   preco_ticker=preco_ticker,
-                                                   patrimonio=patrimonio,
-                                                   qtde=qtde,
-                                                   fatia=fatia)
+#                                email_venda_zerado(saldos_iniciais=saldos_iniciais,
+#                                                   saldo_usd=saldo_usd,
+#                                                   saldo_ticker=saldo_ticker,
+#                                                   preco_ticker=preco_ticker,
+#                                                   patrimonio=patrimonio,
+#                                                   qtde=qtde,
+#                                                   fatia=fatia)
                             else:
-                                email_venda(saldos_iniciais=saldos_iniciais,
-                                            saldo_usd=saldo_usd,
-                                            saldo_ticker=saldo_ticker,
-                                            preco_ticker=preco_ticker,
-                                            patrimonio=patrimonio,
-                                            qtde=qtde,
-                                            fatia=fatia)
+                                pass
+#                                email_venda(saldos_iniciais=saldos_iniciais,
+#                                            saldo_usd=saldo_usd,
+#                                            saldo_ticker=saldo_ticker,
+#                                            preco_ticker=preco_ticker,
+#                                            patrimonio=patrimonio,
+#                                            qtde=qtde,
+#                                            fatia=fatia)
                             # Faz o registro do ledger em arquivo local
                             pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
-                            print(f'Aguardando novo ciclo...')
+                            print(f'Aguardando novo ciclo...\n\n')
                         except:
                             erro_venda(qtde=qtde, ticker=ticker)
             else:
