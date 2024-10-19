@@ -444,11 +444,14 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                 pass
             else:
                 if (((datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) != 0) & (ledger_temp.iloc[-1]['Mail'] == 0)):
-                    print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
-                    ledger_temp = pd.DataFrame(ledger)
-                    ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
-                    pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
-                    email_relatorio(temp=ledger_temp)
+                    try:
+                        print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
+                        ledger_temp = pd.DataFrame(ledger)
+                        ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
+                        pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
+                        email_relatorio(temp=ledger_temp)
+                    except:
+                        print('ERRO: Não foi possível o envio do e-mail de relatório semanal. Verificar.')
                 else:
                     pass
             # PROCESSAMENTO DE COMPRAS
@@ -683,7 +686,7 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
 try:
     carteira, cliente, infos = carteira_binance()
 except:
-    print('Não foi possível contectar à carteira da Binance.')
+    print('ERRO: Não foi possível contectar à carteira da Binance.')
     print('Favor verificar.\n')
     carteira_off()
     print('\n\nAbortando.')
