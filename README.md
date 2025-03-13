@@ -59,3 +59,5 @@ THIS BOT IS NOT AN INVESTMENT/TRADING ADVICE!
 TouringTrade can perform trades with real money, yes, but it is used just for educational purposes and should not be used to make any profit or be part of any portfolio whatsoever.
 
 If you should use my system (or any variation of it) please be aware that you're on your risk and I'm not responsible for your profits or losses.
+
+Even if you happened to build a strategy that got favorable results with historical data (e.g. returned profit) it absolutely does not mean that you'll get the same esults with real-time data.

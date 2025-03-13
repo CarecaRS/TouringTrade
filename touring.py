@@ -1,37 +1,61 @@
-import pandas as pd  # Necessário para a carteira da Binance
-import binance.enums  # Responsável pelo trading
-import datetime  # Necessário para o histórico dos ativos
-import requests  # Histórico dos ativos
-import math  # necessário para as ordens da Binance
-import json  # Histórico dos ativos
-import time  # Necessário para o Touring (time.sleep())
-import pandas_ta  # Calcula os indicadores de tendência
+#############################################################
+#                                                           #
+#      TouringTrade by CarecaRS (github.com/CarecaRS)       #
+#                                                           #
+#  -------------------------------------------------------  #
+#                                                           #
+#      This is the the actual trading script. THIS ONE HERE #
+# USES REAL MONEY!  It's developed for educational purposes #
+# and  *MUST NOT*  be considered  investment and/or trading #
+# advice.  If you should use it with  real money you are at #
+# your  own risk and I'm not  responsible for any profit or #
+# losses that you might incur.                              #
+#      Even if  you get  favorable results  with historical #
+# data (e.g. profit) it does not mean that you will get the #
+# same outcome with real-time data.                         #
+#      I use NeoVIM to code, so I wrote the code in  such a #
+# way that it works fine for me.  You are free to change it #
+# to your liking and to whatever works for you.             #
+#                                                           #
+#  -------------------------------------------------------  #
+#                                                           #
+#   I'm a brazilian guy,  so  my  dataframes  and intrinsic #
+# stuff are probably always in portuguese. The printed mes- #
+# sages and the  e-mails are in english.  If you find some- #
+# thing that needs translation  for the proper work of this #
+# script please send me a message so I can change it in the #
+# original too. Thanks and have fun tweaking strategies!    #
+#                                                           #
+#  -------------------------------------------------------  #
+#                                                           #
+#    If you haven't read the backtest script yet I strongly #
+# suggest you do so first, things are better explained over #
+# there and I won't rewrite everything. Therefore, I assume #
+# that  you  already know  how most  of this  script  works # 
+# (since it is based on that one).                          #
+#                                                           #
+#############################################################
+
+###
+# IMPORT NEEDED PACKAGES
+###
+import pandas as pd  # Needed for Binance portfolio
+import binance.enums  # Responsible for trading
+import datetime  # Needed for asset historical data
+import requests  # This too
+import json  # This also
+import math  # Needed for Binance orders
+import time  # Needed for the script to work (time.sleep())
+import pandas_ta  # Calculates indicators
 from binance.client import Client  # Binance
-import smtplib  # necessário para o e-mail
-# Abaixo: importação da API da Binance e dados do e-mail
-# Isso tudo do arquivo local keys.py
-from keys import api_secret_trade, api_key_trade, email_sender, email_personal, email_pwd
-%autoindent OFF  # Uso pessoal, em função da minha IDE (NeoVIM)
-
-# TO-DO LIST
-#
-# Vamos imaginar que esse algoritmo funcione *muito* bem. Eventualmente pode-se chegar a um ponto
-# em que cada ordem registrada tenha um peso significativo na dinâmica do mercado (imaginemos,
-# por exemplo, ordens de US$100mil). Para tentar solucionar isso, programar uma verificação do
-# histórico das últimas N ordens processadas pelo agente (N sendo a quantidade de ordens das últimas
-# 24h, por exemplo), de modo a poder mensurar um montante ótimo de negociação que tenha o menor
-# impacto possível.
-
-####################################################
-#                                                  #
-#   Definição das funçõs utilizadas pelo Touring   #
-#                                                  #
-####################################################
+import smtplib  # Needed for the e-mail reports
+from keys import api_secret_trade, api_key_trade, email_sender, email_personal, email_pwd  # These are your infos, read the README.md if you're lost here
 
 ###
-# NOTIFICAÇÕES POR E-MAIL
+# E-MAIL NOTIFICATIONS
 ###
-# Notificação de compra
+
+# Buy orders
 def email_compra(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, preco_ticker=None, patrimonio=None, qtde=None, fatia=None):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
@@ -60,7 +84,7 @@ def email_compra(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, preco_
     print('E-mail enviado com sucesso.')
 
 
-# Notificação de venda
+# Sell orders
 def email_venda(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, preco_ticker=None, patrimonio=None, qtde=None, fatia=None):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
@@ -89,7 +113,7 @@ def email_venda(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, preco_t
     print('E-mail enviado com sucesso.')
 
 
-# Notificação de venda quando é zerado o estoque do ativo negociado
+# Sellout orders
 def email_venda_zerado(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, preco_ticker=None, patrimonio=None, qtde=None, fatia=None):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
@@ -118,7 +142,7 @@ def email_venda_zerado(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, 
     print('E-mail enviado com sucesso.')
 
 
-# Relatório semanal
+# Week report
 def email_relatorio(temp=None):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
@@ -139,8 +163,6 @@ def email_relatorio(temp=None):
             Rendimento da estrategia: {round(var_estrategia*100, 4)}%\n\
             Oscilacao do ativo: {round(var_ativo*100, 4)}%\n\
             Quantidade de trades na semana: {(temp.loc[mask]['CV'] == 'compra').sum()} COMPRAS e {(temp.loc[mask]['CV'] == 'venda').sum()} VENDAS.\n\n\
-            Desempenho total da estrategia (inicio 17/09/2024): {round(((patrimonio/temp['PatrimonioTotal'][0])-1)*100, 4)}%\n\
-            Desempenho total do ativo (inicio 17/09/2024): {round(((preco_ticker/temp['ValorUnitario'][0])-1)*100, 4)}%\n\n\
             Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
     message = (f'Subject: {subject}\n\n{body}')
     print('Enviando e-mail agora.')
@@ -151,7 +173,7 @@ def email_relatorio(temp=None):
     print('E-mail enviado com sucesso.')
 
 
-# Notificação quando não é possível acessar a carteira na Binance
+# Error in Binance systems
 def carteira_off():
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
@@ -169,8 +191,45 @@ def carteira_off():
     print('E-mail enviado com sucesso.')
 
 
+# Buy trade error
+def erro_compra(qtde=None, ticker='BTCUSDT'):
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    subject = f'Touring: erro no processamento de compra!'
+    body = (f'Por algum motivo nao consegui comprar {qtde} {ticker[:3]}s.\n\n\
+            Precisa ver o quanto antes, pois podemos perder a tendencia.\n\n\
+            *ACHO* que eu sigo de olho nos movimentos, se for so esse e-mail recebido e eu consegui comprar depois, menos mal.\n\
+            Mas vale a pena dar uma olhada no meu log e tambem no ledger.\n\n\
+            No aguardo.')
+    message = (f'Subject: {subject}\n\n{body}')
+    print('=== Enviando e-mail sobre erro de compra ===')
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(email_personal, email_pwd)
+        smtp.sendmail(email_sender, email_personal, message)
+    print('E-mail enviado com sucesso.')
+
+# Sell trade error
+def erro_venda(qtde=None, ticker='BTCUSDT'):
+    smtp_server = 'smtp.gmail.com'
+    smtp_port = 587
+    subject = f'Touring: erro no processamento de venda!'
+    body = (f'Por algum motivo nao consegui vender {qtde} {ticker[:3]}s.\n\n\
+            Precisa ver o quanto antes, pois podemos perder a tendencia.\n\n\
+            *ACHO* que eu sigo de olho nos movimentos, se for so esse e-mail recebido e eu consegui comprar depois, menos mal.\n\
+            Mas vale a pena dar uma olhada no meu log e tambem no ledger.\n\n\
+            No aguardo.')
+    message = (f'Subject: {subject}\n\n{body}')
+    print('=== Enviando e-mail sobre erro de venda ===')
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(email_personal, email_pwd)
+        smtp.sendmail(email_sender, email_personal, message)
+    print('E-mail enviado com sucesso.')
+
+
 ###
-# ACESSO AO SISTEMA DA BINANCE
+# BINANCE ACCESS
 ###
 def carteira_binance():
     cliente = Client(api_key_trade, api_secret_trade)
@@ -199,12 +258,69 @@ def carteira_binance():
 
 
 ###
-# HISTÓRICO DOS ATIVOS
-##
-def valores_historicos(ticker='BTCUSDT', dias=30, intervalo='15m'):
-    if dias < 8:
+# MATH ABOUT ASSETS QUANTITY AND USDT SLICES
+###
+def calcula_cotas_compra():
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades do ativo
+    livro_compras = pd.DataFrame(cliente.get_order_book(symbol=ticker))
+    preco_ticker = float(livro_compras.loc[0]['bids'][0])
+    saldoBTCemUSD = saldo_ticker*preco_ticker  # Estima o valor do ativo em USD
+    patrimonio = saldo_usd + saldoBTCemUSD  # Calcula o patrimônio total vigente (ativo + USD)
+    filtros_btc = cliente.get_symbol_info(ticker)['filters']  # Busca as informações pertinentes ao ativo na exchange
+    step_btc = float(filtros_btc[1]['minQty'])  # Obtenção da quantidade mínima do ativo para uma ordem válida
+    fatia = patrimonio/max_ordens  # Calcula o valor de cada 'fatia', baseado no número máximo de posições mantidas a cada tempo
+    carteira_full = max_ordens - round(saldoBTCemUSD/fatia)  # Faz o registro do número de posições que pode-se entrar no momento do loop
+    qtde_btc = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
+    if saldo_usd < fatia: # Prevenção na compra, onde o saldo é inferior à fatia
+        fatia = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
+        qtde_btc = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
+        qtde_btc = math.floor(qtde_btc/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo em cada ordem
+        qtde_btc = qtde_btc*100000
+        qtde_btc = round(qtde_btc)
+        qtde_btc = qtde_btc/100000
+    else:
+        qtde_btc = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
+        qtde_btc = math.floor(qtde_btc/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo em cada ordem
+        qtde_btc = qtde_btc*100000  # O arredondamento acima pode ter erro de cálculo na 10a casa decimal
+        qtde_btc = round(qtde_btc)  # Procede com um novo arredondamento para evitar problemas
+        qtde_btc = qtde_btc/100000
+    return qtde_btc, fatia
+
+def calcula_cotas_venda():
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades do ativo
+    livro_compras = pd.DataFrame(cliente.get_order_book(symbol=ticker))
+    preco_ticker = float(livro_compras.loc[0]['bids'][0])
+    saldoBTCemUSD = saldo_ticker*preco_ticker  # Estima o valor do ativo em USD
+    patrimonio = saldo_usd + saldoBTCemUSD  # Calcula o patrimônio total vigente (ativo + USD)
+    filtros_btc = cliente.get_symbol_info(ticker)['filters']  # Busca as informações pertinentes ao ativo na exchange
+    step_btc = float(filtros_btc[1]['minQty'])  # Obtenção da quantidade mínima do ativo para uma ordem válida
+    fatia = patrimonio/max_ordens  # Calcula o valor de cada 'fatia', baseado no número máximo de posições mantidas a cada tempo
+    carteira_full = max_ordens - round(saldoBTCemUSD/fatia)  # Faz o registro do número de posições que pode-se entrar no momento do loop
+    qtde_btc = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
+    if carteira[carteira['asset'] == ticker[:3]]['free'].sum() < saldo_ticker: # Prevenção na venda, onde a qtde_btc é inferior ao saldo
+        qtde_btc = saldo_ticker
+        qtde_btc = math.floor(qtde_btc/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo para venda
+        qtde_btc = qtde_btc*100000  # O arredondamento acima pode ter erro de cálculo na 10a casa decimal
+        qtde_btc = round(qtde_btc)  # Procede com um novo arredondamento para evitar problemas
+        qtde_btc = qtde_btc/100000
+    else:
+        qtde_btc = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
+        qtde_btc = math.floor(qtde_btc/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo em cada ordem
+        qtde_btc = qtde_btc*100000  # O arredondamento acima pode ter erro de cálculo na 10a casa decimal
+        qtde_btc = round(qtde_btc)  # Procede com um novo arredondamento para evitar problemas
+        qtde_btc = qtde_btc/100000
+    return qtde_btc, fatia
+
+
+###
+# HISTORICAL DATA
+###
+def valores_historicos(ticker='BTCUSDT', dias=30, intervalo='5m'):
+    if dias < 3:
         print('\n\n\n\n*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*\n\n')
-        print('IMPORTANTE! A quantidade de dias deve ser 8 ou mais dias! Este histórico NÃO VAI FUNCIONAR!\n\n')
+        print('IMPORTANTE! A quantidade de dias deve ser 3 ou mais dias! Este histórico NÃO VAI FUNCIONAR!\n\n')
         print('*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*\n\n')
     else:
         pass
@@ -249,7 +365,7 @@ def valores_historicos(ticker='BTCUSDT', dias=30, intervalo='15m'):
 
 
 ###
-# ORDEM DE COMPRA
+# BUY ORDER
 ###
 def ordem_compra(ticker=None, quantity=None):
     cliente.order_market_buy(symbol=ticker,
@@ -257,7 +373,7 @@ def ordem_compra(ticker=None, quantity=None):
 
 
 ###
-# ORDEM DE VENDA
+# SELL ORDER
 ###
 def ordem_venda(ticker=None, quantity=None):
     cliente.order_market_sell(symbol=ticker,
@@ -265,21 +381,17 @@ def ordem_venda(ticker=None, quantity=None):
 
 
 ###
-# CÁLCULO DOS INDICADORES
-# - Os que estão comentados não são utilizados até o presente momento
+# INDICATORS CALC
 ###
-def adiciona_indicadores(df, periodo=20):
-    print('Calculando indicadores de TENDENCIA:')
-    # Média Móvel curta (24 - 6 horas) (TENDENCIA)
-    print('       Média móvel curta (6 horas)')
-    df['mm24'] = pandas_ta.sma(df['close'], length=24)
-    # Média Móvel média (192 - 2 dias) (TENDENCIA)
-    print('       Média móvel média (2 dias)')
-    df['mm192'] = pandas_ta.sma(df['close'], length=192)
-    # Média Móvel longa (672 - 7 dias) (TENDENCIA)
-    print('       Média móvel longa (1 semana)')
-    df['mm672'] = pandas_ta.sma(df['close'], length=672)
-    print('Informações adicionadas ao dataframe com sucesso.')
+def adiciona_indicadores(df, periodo=4):  # With 15min timeframes, 4 periods (periodo) of time equals 1 hour
+# RSI
+    df['rsi'] = pandas_ta.rsi(close=df['close'], length=periodo)
+# Média Móvel curta (15min)
+    df['mmCurta'] = pandas_ta.sma(df['close'], length=periodo/4)
+# Média Móvel média 
+    df['mmMedia'] = pandas_ta.sma(df['close'], length=periodo*30)
+# Média Móvel longa
+    df['mmLonga'] = pandas_ta.sma(df['close'], length=periodo*60)
 
 
 ###
@@ -301,7 +413,7 @@ def estrategia_bitcoin(df=None, defasagem=6):
                     (df.loc[idx-3, 'open'] > df.loc[idx-2, 'open']) &
                     (df.loc[idx-2, 'open'] > df.loc[idx-1, 'open']) &
                     (df.loc[idx-1, 'open'] > df.loc[idx, 'open']) &
-                    (df.loc[idx, 'mm672'] > df.loc[idx, 'mm24'])):
+                    (df.loc[idx, 'mmLonga'] > df.loc[idx, 'mmCurta'])):
                 compra.append(False)
             # Se a média dos preços estiver caindo nas últimas três horas, inibe compra
             elif (pm3h > pm2h) & (pm2h > pm1h) & (pm1h > df.loc[idx, 'open']):
@@ -316,14 +428,14 @@ def estrategia_bitcoin(df=None, defasagem=6):
                     # estiver menor do que a máxima de agora E TAMBÉM a MM curta estiver
                     # maior que a MM longa, sinaliza compra
                     compra.append((df.loc[(idx-1), 'high'] < df.loc[idx, 'high']) &
-                                  (df.loc[idx, 'mm24'] > df.loc[idx, 'mm672']))
+                                  (df.loc[idx, 'mmCurta'] > df.loc[idx, 'mmLonga']))
         else:
             if idx >= 2:
                 # Se a máxima do período anterior estiver menor do que a máxima
                 # de agora (ou seja, preço está subindo) e também a MM curta esteja acima
                 # da MM longa, sinaliza compra
                 compra.append((df.loc[(idx-1), 'high'] < df.loc[idx, 'high']) &
-                              (df.loc[idx, 'mm24'] > df.loc[idx, 'mm672']))
+                              (df.loc[idx, 'mmCurta'] > df.loc[idx, 'mmLonga']))
             else:
                 # Outras situações diferentes do estabelecido, sinaliza 'não-compra'
                 compra.append(False)
@@ -335,7 +447,7 @@ def estrategia_bitcoin(df=None, defasagem=6):
             if((df.loc[idx-4, 'close'] > df.loc[idx-3, 'close']) &
                     (df.loc[idx-3, 'close'] > df.loc[idx-2, 'close']) &
                     (df.loc[idx-2, 'close'] > df.loc[idx-1, 'close']) &
-                    (df.loc[idx, 'open'] > df.loc[idx-1, 'mm24'])):
+                    (df.loc[idx, 'open'] > df.loc[idx-1, 'mmCurta'])):
                 venda.append(True)
             else:
                 # Se não, registra 'não-venda'
@@ -345,7 +457,7 @@ def estrategia_bitcoin(df=None, defasagem=6):
                 # Início da série temporal é desprezível na estratégia, registra sinal
                 # de 'não-venda'
                 venda.append(False)
-            elif df.loc[idx, 'open'] < df.loc[idx-1, 'mm24']:
+            elif df.loc[idx, 'open'] < df.loc[idx-1, 'mmCurta']:
                 # Se o preço de abertura for menor do que a MM curta do período anterior,
                 # já registra sinal de venda
                 venda.append(True)
@@ -364,17 +476,9 @@ def estrategia_bitcoin(df=None, defasagem=6):
 
 
 ###
-# TOURING
+# TOURING ITSELF
 ###
 def touring(max_ordens=3, compra=None, venda=None, ticker=None):
-    # Verifica a existência do arquivo de registro das operações passadas.
-    # Se o arquivo 'livro_contabil.csv' não existir na pasta deste script
-    # ele vai gerar um novo no momento do primeiro trade.
-    try:
-        ledger = pd.read_csv('livro_contabil.csv')
-        ledger = ledger.to_dict(orient='records')
-    except:
-        ledger = []
     marcador = 1  # Apenas para controle de ledger e zeramento de carteira
     print('\nAguardando o tempo certo para a primeira interação...\n')
     while cliente.get_system_status()['msg'] == 'normal':
@@ -382,28 +486,36 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
         # demorando mais tempo do que o código previa, então ao invés de esperar
         # por 60*15 segundos a cada ciclo, o ciclo só começa se for igual a um
         # destes momentos abaixo (min:seg).
-        while (datetime.datetime.now().strftime('%M:%S') in ('15:00', '30:00', '45:00', '00:00')) == False:
+        while (datetime.datetime.now().strftime('%M')[-1] in ('5', '0')) == False:
             time.sleep(1)
         else:
+            # Verifica a existência do arquivo de registro das operações passadas.
+            # Se o arquivo 'livro_contabil.csv' não existir na pasta deste script
+            # ele vai gerar um novo no momento do primeiro trade.
+            try:
+                ledger = pd.read_csv('livro_contabil.csv')
+                ledger = ledger.to_dict(orient='records')
+            except:
+                ledger = []
             # faz verificação do sinal da Binance, se não estiver normal retorna erro (depois do último 'else' lá embaixo)
             print('Atingido checkpoint de tempo, verificando...')
             print('Binance online, realizando nova análise de trading.\n')
-            historico = valores_historicos(dias=8)  # busca o histórico do ativo
+            historico = valores_historicos(dias=3)  # busca o histórico do ativo
             adiciona_indicadores(historico)  # adiciona os indicadores utilizados
             print('Removendo NaNs e refazendo índice...')
             historico = historico.dropna()
             historico = historico.reset_index()  # limpa o df (acima) e faz o reset do índice
             estrategia_bitcoin(historico)  # gera os sinais de compra/venda da estratégia
-            # Coleta dos saldos iniciais
+            # Coleta dos saldos iniciais e cálculos básicos para dar continuidade no script
             saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
             saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades do ativo
-            preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])  # Resgata o valor médio do ativo
-            patrimonio = saldo_usd + (saldo_ticker * preco_ticker)  # Calcula o patrimônio total vigente (ativo + USD)
-            saldos_iniciais = {'USD': saldo_usd, 'BTC': saldo_ticker, 'PatrimonioUSD': patrimonio}  # Cria um dicionário com essas informações
-            saldoBTCemUSD = saldo_ticker*preco_ticker  # Estima o valor do ativo em USD
+            livro_compras = pd.DataFrame(cliente.get_order_book(symbol=ticker))  # Resgata as ordens em book
+            preco_ticker = float(livro_compras.loc[0]['bids'][0])  # Utiliza o valor de compra do book como referência
+            saldoBTCemUSD = saldo_ticker * preco_ticker  # Estima o valor do ativo em USD
+            patrimonio = saldo_usd + saldoBTCemUSD  # Calcula o patrimônio total vigente (ativo + USD)
             filtros_btc = cliente.get_symbol_info(ticker)['filters']  # Busca as informações pertinentes ao ativo na exchange
             step_btc = float(filtros_btc[1]['minQty'])  # Obtenção da quantidade mínima do ativo para uma ordem válida
-            fatia = saldos_iniciais['PatrimonioUSD']/max_ordens  # Calcula o valor de cada 'fatia', baseado no número máximo de posições mantidas a cada tempo
+            fatia = patrimonio/max_ordens  # Calcula o valor de cada 'fatia', baseado no número máximo de posições mantidas a cada tempo
             carteira_full = max_ordens - round(saldoBTCemUSD/fatia)  # Faz o registro do número de posições que pode-se entrar no momento do loop
             qtde = fatia/preco_ticker  # Calcula a quantidade de ativo para cada valor (fatia) de investimento estabelecido acima
             qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo em cada ordem
@@ -418,12 +530,15 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             if len(ledger_temp) <= 2:
                 pass
             else:
-                if ((datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) != 0) & (ledger_temp.iloc[-1]['Mail'] == 0):
-                    print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
-                    email_relatorio(temp=ledger_temp)
-                    ledger_temp = pd.DataFrame(ledger)
-                    ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
-                    pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
+                if (((datetime.datetime.now().isocalendar()[1] - ledger_temp.loc[ledger_temp.shape[0]-1, 'Semana']) != 0) & (ledger_temp.iloc[-1]['Mail'] == 0)):
+                    try:
+                        print('\nMudança de semana. - enviando relatório semanal para o e-mail cadastrado.\n')
+                        ledger_temp = pd.DataFrame(ledger)
+                        ledger_temp.loc[(len(ledger_temp)-1), 'Mail'] = 1
+                        pd.DataFrame(data=ledger_temp).to_csv('livro_contabil.csv', index=False)
+                        email_relatorio(temp=ledger_temp)
+                    except:
+                        print('ERRO: Não foi possível o envio do e-mail de relatório semanal. Verificar.')
                 else:
                     pass
             # PROCESSAMENTO DE COMPRAS
@@ -441,83 +556,89 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
                         marcador += 1
                     else:
                         pass
-                    ordem_compra(ticker=ticker, quantity=qtde)
-                    cv = 'compra'
-                    # Cria o registro em ledger
-                    ledger.append({'Data': datetime.datetime.now(),
-                                   'Semana': datetime.datetime.now().isocalendar()[1],
-                                   'Ativo': ticker[:3],
-                                   'CV': cv,
-                                   'Marcador': marcador,
-                                   'ValorUnitario': round(preco_ticker, 2),
-                                   'Quantia': '{:.5f}'.format(qtde),
-                                   'ValorNegociado': round(fatia, 2),
-                                   'PatrimonioTotal': round(patrimonio, 2),
-                                   'Mail': 0})
-                    # Informa por e-mail da compra
-                    email_compra(saldos_iniciais=saldos_iniciais,
-                                 saldo_usd=saldo_usd,
-                                 saldo_ticker=saldo_ticker,
-                                 preco_ticker=preco_ticker,
-                                 patrimonio=patrimonio,
-                                 qtde=qtde,
-                                 fatia=fatia)
-                    print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                    print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
-                    print(f'Aguardando novo ciclo...')
-                    # Faz o registro do ledger em arquivo local
-                    pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
+                    # Se o saldo para compra na carteira for maior ou igual que o necessário calculado na fatia, segue normal
+#                    if saldo_usd >= fatia:
+                    try:
+                        qtde, fatia = calcula_cotas_compra()
+                        cv = 'compra'
+                        ordem_compra(ticker=ticker, quantity=qtde)
+                        # Cria o registro em ledger
+                        ledger.append({'Data': datetime.datetime.now(),
+                                       'Semana': datetime.datetime.now().isocalendar()[1],
+                                       'Ativo': ticker[:3],
+                                       'CV': cv,
+                                       'Marcador': marcador,
+                                       'ValorUnitario': round(preco_ticker, 2),
+                                       'Quantia': '{:.5f}'.format(qtde),
+                                       'ValorNegociado': round(fatia, 2),
+                                       'PatrimonioTotal': round(patrimonio, 2),
+                                       'Mail': 0})
+                            # Informa por e-mail da compra
+#                            email_compra(saldos_iniciais=saldos_iniciais,
+#                                         saldo_usd=saldo_usd,
+#                                         saldo_ticker=saldo_ticker,
+#                                         preco_ticker=preco_ticker,
+#                                         patrimonio=patrimonio,
+#                                         qtde=qtde,
+#                                         fatia=fatia)
+                        print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                        print(f'   --> Compra de US${round(fatia, 2)} equivalente a {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada!\n\n')
+                        # Faz o registro do ledger em arquivo local
+                        pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
+                        print(f'Aguardando novo ciclo...\n\n')
+                    except:
+                        erro_compra(qtde=qtde, ticker=ticker)
             # PROCESSAMENTO DE VENDAS
             elif historico.loc[(historico.shape[0]-1), 'sinal_est'] == -1:  # Sinal de Venda da estratégia
                 if carteira_full == max_ordens:  # SE CARTEIRA 100% CHEIA DE GRANA, NÃO TEM O QUE VENDER
                     pass
                 else:
                     # Se a quantia em carteira for maior ou igual que o mantante calculado na fatia, segue normal
-                    if carteira[carteira['asset'] == ticker[:3]]['free'].sum() >= qtde:                    
+#                    if carteira[carteira['asset'] == ticker[:3]]['free'].sum() >= qtde:
+                    try:
+                        qtde, fatia = calcula_cotas_venda()
+                        cv = 'venda'
                         ordem_venda(ticker=ticker, quantity=qtde)
-                    # Se a quantia em carteira for menor que o montante de fatia, recalcula e vende o que tem
-                    else:
-                        qtde = carteira[carteira['asset'] == ticker[:3]]['free'].sum() # Resgata o valor total de BTCs em carteira
-                        qtde = math.floor(qtde/step_btc)*step_btc  # Arredonda para baixo a quantidade de ativo para venda
-                        ordem_venda(ticker=ticker, quantity=qtde)
-                    cv = 'venda'
-                    print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                    print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.\n\n')
-                    carteira_full += 1
-                    # Cria o registro em ledger
-                    ledger.append({'Data': datetime.datetime.now(),
-                                   'Semana': datetime.datetime.now().isocalendar()[1],
-                                   'Ativo': ticker[:3],
-                                   'CV': cv,
-                                   'Marcador': marcador,
-                                   'ValorUnitario': round(preco_ticker, 2),
-                                   'Quantia': '{:.5f}'.format(qtde),
-                                   'ValorNegociado': round(fatia, 2),
-                                   'PatrimonioTotal': round(patrimonio, 2),
-                                   'Mail': 0})
-                    # Informa a venda por e-mail, seja venda parcial ou de zeramento de todas posições
-                    if carteira_full == 0:
-                        print(f'\n\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
-                        print('   --> ***  Todas posições zeradas!  ***\n\n')
-                        # O email não muda praticamente nada, só a informação de ativo zerado
-                        email_venda_zerado(saldos_iniciais=saldos_iniciais,
-                                           saldo_usd=saldo_usd,
-                                           saldo_ticker=saldo_ticker,
-                                           preco_ticker=preco_ticker,
-                                           patrimonio=patrimonio,
-                                           qtde=qtde,
-                                           fatia=fatia)
-                    else:
-                        email_venda(saldos_iniciais=saldos_iniciais,
-                                    saldo_usd=saldo_usd,
-                                    saldo_ticker=saldo_ticker,
-                                    preco_ticker=preco_ticker,
-                                    patrimonio=patrimonio,
-                                    qtde=qtde,
-                                    fatia=fatia)
-                    # Faz o registro do ledger em arquivo local
-                    pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
-                    print(f'Aguardando novo ciclo...')
+                        print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                        print(f'   --> Venda de {'{:.5f}'.format(qtde)} {ticker[:3]+'s'} realizada, equivalente a US${round(fatia, 2)}.\n\n')
+                        carteira_full += 1
+                        # Cria o registro em ledger
+                        ledger.append({'Data': datetime.datetime.now(),
+                                       'Semana': datetime.datetime.now().isocalendar()[1],
+                                       'Ativo': ticker[:3],
+                                       'CV': cv,
+                                       'Marcador': marcador,
+                                       'ValorUnitario': round(preco_ticker, 2),
+                                       'Quantia': '{:.5f}'.format(qtde),
+                                       'ValorNegociado': round(fatia, 2),
+                                       'PatrimonioTotal': round(patrimonio, 2),
+                                       'Mail': 0})
+                            # Informa a venda por e-mail, seja venda parcial ou de zeramento de todas posições
+                        if carteira_full == 0:
+                            print(f'\n\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
+                            print('   --> ***  Todas posições zeradas!  ***\n\n')
+                                # O email não muda praticamente nada, só a informação de ativo zerado
+  #                              email_venda_zerado(saldos_iniciais=saldos_iniciais,
+  #                                                 saldo_usd=saldo_usd,
+  #                                                 saldo_ticker=saldo_ticker,
+  #                                                 preco_ticker=preco_ticker,
+  #                                                 patrimonio=patrimonio,
+  #                                                 qtde=qtde,
+  #                                                 fatia=fatia)
+                        else:
+                            pass
+  #                              email_venda(saldos_iniciais=saldos_iniciais,
+  #                                          saldo_usd=saldo_usd,
+  #                                          saldo_ticker=saldo_ticker,
+  #                                          preco_ticker=preco_ticker,
+  #                                          patrimonio=patrimonio,
+  #                                          qtde=qtde,
+  #                                          fatia=fatia)
+                        # Faz o registro do ledger em arquivo local
+                        pd.DataFrame(data=ledger).to_csv('livro_contabil.csv', index=False)
+                        print(f'Aguardando novo ciclo...\n\n')
+                    except:
+                        erro_venda(qtde=qtde, ticker=ticker)
             else:
                 print(f'\nÚltima verificação: {datetime.datetime.now().strftime("%H:%M:%S do dia %d/%m")}')
                 print(f'   --> Estratégia sem sinais de compra/venda ou sem saldo para venda no período, esperando.\n\n')
@@ -546,10 +667,6 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
             smtp.login(email_personal, email_pwd)
             smtp.sendmail(email_sender, email_personal, message)
         print('E-mail enviado com sucesso.')  # final do protocolo de envio de e-mail quando Binance der erro
-        # E morre.
-        # Aqui depende de eu acessar a máquina que está rodando o script, verificar o que houve de errado
-        # (se é só a Binance ou se é algo na máquina/script/python/whatever), arrumar (se for possível) e
-        # colocar rodar novamente.
 
 
 ####################################################
@@ -557,39 +674,21 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
 #            Trading Area a partir daqui           #
 #                                                  #
 ####################################################
+
 # Verifica o acesso à carteira da Binance. Importante quando estiver
 # rodando a partir de outro local que não o próprio PC. Se algo aconteceu
 # e o Touring não conseguir acesso, ele avisa por e-mail.
 try:
     carteira, cliente, infos = carteira_binance()
 except:
-    print('Não foi possível contectar à carteira da Binance.')
-    print('Favor verificar.')
+    print('ERRO: Não foi possível contectar à carteira da Binance.')
+    print('Favor verificar.\n')
     carteira_off()
-    print('Abortando.')
-#
+    print('\n\nAbortando.')
+
 # O ticker é a moeda (ou o par de moedas, no caso da Binance) que está se negociando
 ticker = 'BTCUSDT'  # Aqui, BTC adquirido/comprado com USDT
 # Número máximo de ordens compradas ao mesmo tempo:
-max_ordens = 3
-
+max_ordens = 2
+#
 touring(max_ordens=max_ordens, ticker=ticker)
-
-
-####
-# VERIFICAÇÕES diversas na Binance, caso necessárias:
-###
-carteira  # Contém os saldos
-cliente  # API para chamar outras funções (como as ordens, por exemplo)
-infos  # Dicionário com informações diversas
-
-# Verifica as autorizações do cliente (trade/saque/depósito)
-infos['canTrade']
-infos['canWithdraw']
-infos['canDeposit']
-
-# Verifica a conta pela qual são feitas as negociações (margin/spot)
-infos['accountType']
-
-# Retorna o user ID na corretora
-infos['uid']
