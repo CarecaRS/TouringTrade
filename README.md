@@ -1,16 +1,25 @@
 # TouringTrade
-TouringTrade is a personal assistant (a.k.a. 'bot') that buys and sell cryptocurrency.
+TouringTrade is a personal assistant (a.k.a. 'bot') that I made from scratch, it buys and sells cryptocurrency through Binance.
 
-I made it to trade using Binance API (`python-binance` package in Python) for a few specific reasons:
+I made it using Binance API (`python-binance` package in Python) for a few specific reasons:
 - 24/7 trading (no open/close hours, so one is not subject to the oscillations worldwide between closing and opening);
 - Minimal values for trading;
 - Low trading costs (0,1%).
 
+If someone wants to work with another exchange or make it so that Touring can trade other assets (stocks, options, whatever), the solution is very simple, it just needs a little tweak in the code and you're done. For each desired asset or exchange, the user must read the proprer documentation with the service or asset provider.
+
+
+## The files
+TouringTrade has three key files, one has the sole purpose of backtesting strategies with real on-line data, the other two are used for the trade itself and for the activities record. Another file is created for logging, as stated deep down in this README.
+
+`backtest_touring.py` is the backtest script, `touring.py` is the trading script and `livro_contabil.csv` (portuguese for 'ledger') is the, well, ledger that records all buy and sell trades, amount traded, dates and so on. The details about how the scripts work are registered inside each script, also, of course, how one is able to create his own strategies for buying/selling crypto.
+
+
 ## Requisites
-A file `keys.py` must be created beforehand by the user and it must be in the same directory as the main file `touring.py`. `keys.py` ought to have a few parameters:
+A file `keys.py` must be created beforehand by the user and it must be in the same directory as the main file `touring.py`. `keys.py` must have a few parameters:
 - api_key = 'foo'
 - api_secret = 'bar'
-- email_sender = 'anything@anywhere.com'
+- email_sender = 'anyone@anywhere.com'
 - email_personal = 'your_email@gmail.com' # yeap, must be Gmail
 - email_pwd = 'abcd abcd abcd abcd'
 
@@ -24,7 +33,10 @@ The object `email_sender` in theory would be used as, well, the e-mail sender, b
 
 It is also needed the confirmation by Binance for the conection through your actual IP. This is configurated at **API Management / [edit restrictions]** in Binance dashboard. If your internet provider gives you a dynamic IP (which is the standard here in Brasil) and your internet signal happens to be down for whatever reason then you must include your new running IP in Binance too.
 
-The script can run over the cloud (I used AWS for about six months), and it's as easy as it gets: just use command `nohup`, as follows:
+
+## Running the personal assistant
+
+One can run it in a personal computer or laptop, also the script can run over the cloud (I used AWS for about six months, free of charges), and it's as easy as it gets: just use command `nohup`, as follows.
 
 > nohup python3 -u run_touring.py &
 
