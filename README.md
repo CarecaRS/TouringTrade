@@ -1,60 +1,41 @@
 # TouringTrade
-O TouringTrade é um assistente pessoal (a.k.a. 'bot') de compra/venda de ativos.
+TouringTrade is a personal assistant (a.k.a. 'bot') that buys and sell cryptocurrency.
 
-O desenvolvimento inicial é feito utilizando a Binance (pacote `python-binance` no Python) em função de alguns motivos principais:
-- Possibilidade de negociação 24/7 (não tem abertura/fechamento de pregão, refém das oscilações que ocorrem entre o fechamento e abertura);
-- Valores mínimos para poder realizar um trade;
-- Baixo custo de corretagem (0,1%).
+I made it to trade using Binance API (`python-binance` package in Python) for a few specific reasons:
+- 24/7 trading (no open/close hours, so one is not subject to the oscillations worldwide between closing and opening);
+- Minimal values for trading;
+- Low trading costs (0,1%).
 
-## Requisitos
-Um arquivo `keys.py` deve ser criado pelo usuário e estar na mesma pasta do arquivo principal `touring.py`, contendo alguns parâmetros:
+## Requisites
+A file `keys.py` must be created beforehand by the user and it must be in the same directory as the main file `touring.py`. `keys.py` ought to have a few parameters:
 - api_key = 'foo'
 - api_secret = 'bar'
-- email_sender = 'quem_envia@qualquercoisa.com'
-- email_personal = 'email_particular_da_pessoa@gmail.com'
+- email_sender = 'anything@anywhere.com'
+- email_personal = 'your_email@gmail.com' # yeap, must be Gmail
 - email_pwd = 'abcd abcd abcd abcd'
 
-As chaves API e API Secret são geradas/informadas no site da Binance, na página do usuário (Conta > Gerenciamento de API). Pelo óbvio, não está presente neste repositório o meu arquivo particular contendo as minhas chaves. Também é elementar que as chaves são strings complexas e não apenas 'foo' e/ou 'bar'.
+The API key and API secret are generated in Binance user page (Account > API Management). For obvious reasons mine are not present in this repository. Also, your keys won't be just 'foo' and/or 'bar', they are strings of many characters.
 
-O objeto `email_sender` seria para utilizar como remetente, mas nos meus testes (utilizando o Gmail) essa informação é desprezível. O e-mail acaba sendo recebido como eu enviando para mim mesmo.
+The object `email_sender` in theory would be used as, well, the e-mail sender, but my tests with Gmail indicate that this information is useless: the e-mails happen to be received (and sent) as the user himself (through `email_personal` object).
 
-`email_personal` refere-se ao e-mail do usuário, que receberá as notificações de compra/venda.
+`email_personal` refers to the user personal e-mail, which will receive the buy/sell/report notifications.
 
-`email_pwd` é um password específico gerado através do Google, *NÃO É A SENHA DO PRÓPRIO E-MAIL*! Verificar passo a passo, se necessário, em https://support.google.com/accounts/answer/185833. E, sim, tem que utilizar os espaços entre os caracteres.
+`email_pwd` is a specific password created through Google, *IT'S NOT THE E-MAIL PASSWORD ITSELF*! Check step by step, if necessary, in https://support.google.com/accounts/answer/185833. And yes, the spaces between the characters have to be used.
 
-Também é necessária a liberação por parte da Binance da conexão através do IP atual. Isso é configurado dentro das **Configurações de API** no dashboard da Binance. Se por acaso o provedor de internet fornecer um IP dinâmico (o que é o padrão aqui no Brasil) e a internet cair por qualquer motivo ou faltar luz (pq aí a internet cai), precisa incluir na Binance o novo IP vigente.
+It is also needed the confirmation by Binance for the conection through your actual IP. This is configurated at **API Management / [edit restrictions]** in Binance dashboard. If your internet provider gives you a dynamic IP (which is the standard here in Brasil) and your internet signal happens to be down for whatever reason then you must include your new running IP in Binance too.
 
-Durante duas semanas eu fiquei rodando o Touring através de terminal ("python3 run_touring.py"), então tentei deixara ele rodando em background como service do Arch. Para isso é necessário:
-- Arquivo /etc/systemd/system/touring.service contendo:
-   ```
-  [Unit]
-  Description=Touring Personal Crypto Trader
-  After=syslog.target network.target
-  [Service]
-  WorkingDirectory=/home/thiago
-  User=thiago
-  Environment='PYTHONPATH=/home/thiago/.pyenv/versions/3.12.3/lib/python3.12/site-packages/'
-  ExecStart=/usr/bin/run_touring.py
-  Restart=always
-  [Install]
-  WantedBy=multi-user.target
-  ```
-- Arquivo python `run_touring.py` com permissão de escrita (chmod +x) e copiado para o diretório /usr/bin
-
-Após N tentativas não consegui fazer funcionar o sistema através dos services do Arch, problemas com importação dos módulos do Python. Sem contar que a rede elétrica é bem instável em Niterói, então se a luz cair e retornar isso faz com que o provedor de internet troque o endereço IP de acesso, inibindo a comunicação da API da Binance. Sendo assim, troquei a estratégia.
-
-O script é rodado em cloud (AWS atualmente - 02/10/2024), de forma muito simples se valendo do comando `nohup`, conforme segue abaixo.
+The script can run over the cloud (I used AWS for about six months), and it's as easy as it gets: just use command `nohup`, as follows:
 
 > nohup python3 -u run_touring.py &
 
-O acesso à cloud AWS é feito através de SSH:
-> ssh -i 'TouringKeyPair.pem' ubuntu@[endereco].compute.amazonaws.com
+AWS cloud access is done through SSH:
+> ssh -i 'TouringKeyPair.pem' ubuntu@[address].compute.amazonaws.com
 
-O arquivo `TouringKeyPair.pem` e o endereço de acesso (todo o comando para acesso SSH, na realidade) é fornecido pelo sistema da AWS.
+The file `TouringKeyPair.pem` and the access address (the whole SSH command, actually) are informed by the AWS system.
 
-O output de cada print realizado pelo sistema (verbose a cada 15min, por exemplo) fica armazenado no arquivo `nohup.out`. Para verificar os últimos movimentos, basta comandar um `tail nohup.out` que o sistema retorna as últimas impressões armazenadas no referido arquivo.
+Each print output (verbose every 15min, for example) is stored in the file `nohup.out`. To check the last movements, just input a `tail nohup.out` and the system gives you the last few lines stored in the aforementioned file.
 
-Para o cancelamento do script, busca-se o id do processo com:
+To interrupt the script, one needs to fetch the process id with:
 > ps aux | grep python3
 
-E então mata-se o processo com `kill [id processo]`.
+And then just kill the procecss with `kill [process id]`.
