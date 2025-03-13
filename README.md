@@ -54,7 +54,7 @@ And then just kill the procecss with `kill [process id]`.
 
 
 # DISCLAIMER
-THIS IS NOT AN INVESTMENT ADVICE!
+THIS BOT IS NOT AN INVESTMENT/TRADING ADVICE!
 
 TouringTrade can perform trades with real money, yes, but it is used just for educational purposes and should not be used to make any profit or be part of any portfolio whatsoever.
 
