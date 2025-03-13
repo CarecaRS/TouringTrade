@@ -1,5 +1,29 @@
+#############################################################
+#                                                           #
+#      TouringTrade by CarecaRS (github.com/CarecaRS)       #
+#                                                           #
+#  -------------------------------------------------------  #
+#                                                           #
+#   This is the backtest script, it does not trade real mo- #
+# ney.  I use NeoVIM to code,  so I made the code in such a #
+# way that it works fine for me.  You are free to change it #
+# for your liking and for whatever works for you.           #
+#                                                           #
+#  -------------------------------------------------------  #
+#                                                           #
+#   I'm a brazilian guy,  so  my  dataframes  and intrinsic #
+# stuff are probably always in portuguese. The printed mes- #
+# sages and the  e-mails are in english.  If you find some- #
+# thing that needs translation  for the proper work of this #
+# script please send me a message so I can change it in the #
+# original too. Thanks and have fun tweaking strategies!    #
+#                                                           #
+#############################################################
+
+###
+# IMPORT NEEDED PACKAGES
+###
 import pandas as pd
-#import pandas_datareader.data as web
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 import numpy as np
@@ -12,143 +36,58 @@ import pandas_ta
 from binance.client import Client
 import smtplib
 from keys import api_secret_backtest, api_key_backtest, email_sender, email_personal, email_pwd
-%autoindent OFF
+%autoindent OFF # NeoVIM stuff, you can safely erase/comment it
 
 ###
-# NOTIFICAÇÕES POR E-MAIL
-###
-# Notificação de compra
-def email_compra(df):
-    smtp_server = 'smtp.gmail.com'
-    smtp_port = 587
-    print('Preparando valores para envio da mensagem de compra...')
-    ativo = df.loc[idx, 'par']
-    valor_ativo = df.loc[idx, 'open']
-    valor_investido = df.loc[idx, 'saldo_cart'] - df.loc[idx-1, 'saldo_cart']
-    qtde_comprada = valor_investido/valor_ativo
-    patrimonio = df.loc[idx, 'patrimonio']
-    subject = 'Touring: compra realizada!'
-    body = (f'Acabei de realizar uma ordem de compra!\n\n\
-Ativo negociado: {ativo[:3]}\n\
-            Valor atual do ativo: R${round(valor_ativo, 2)}\n\
-            Valor atual investido: R${round(valor_investido, 2)}\n\
-            Quantidade comprada: {round(qtde_comprada, 8)} {ativo[:3]}\n\n\
-            Total investido atualmente: R${round(df.loc[idx, 'saldo_cart'], 2)}\n\
-            Quantidade total de {ativo[:3]} em carteira: (algum fetch da Binance aqui)\n\
-            Patrimonio atual (saldo+invest) calculado: R${round(patrimonio, 2)}\n\n\
-            Pode ficar tranquilo que eu coordeno outras entradas e as saidas conforme meus parametros ;)\n\
-            Ate mais!')
-    message = (f'Subject: {subject}\n\n{body}')
-    print('Enviando e-mail de compra agora.')
-    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
-        smtp.starttls()
-        smtp.login(email_personal, email_pwd)
-        smtp.sendmail(email_sender, email_personal, message)
-    print('E-mail enviado com sucesso.')
-
-
-# Notificação de venda
-def email_venda(df):
-    smtp_server = 'smtp.gmail.com'
-    smtp_port = 587
-    print('Preparando valores para envio da mensagem de venda...')
-    ativo = df.loc[idx, 'par']
-    valor_ativo = df.loc[idx, 'open']
-    valor_venda = abs(df.loc[idx, 'saldo_cart'] - df.loc[idx-1, 'saldo_cart'])
-    qtde_vendida = valor_venda/valor_ativo
-    patrimonio = df.loc[idx, 'patrimonio']
-    subject = 'Touring: venda realizada!'
-    body = (f'Acabei de realizar uma ordem de venda!\n\n\
-            Ativo negociado: {ativo[:3]}\n\
-            Valor do ativo: R${round(valor_ativo, 2)}\n\
-            Valor de venda: R${round(valor_venda, 2)}\n\
-            Quantidade vendida: {round(qtde_vendida, 8)} {ativo[:3]}\n\n\
-            Total que permanece investido agora: R${round(df.loc[idx, 'saldo_cart'], 2)}\n\
-            Quantidade total de {ativo[:3]} em carteira: (algum fetch da Binance aqui)\n\
-            Patrimonio atual (saldo+invest) calculado: R${round(patrimonio, 2)}\n\n\
-            Pode ficar tranquilo que eu coordeno outras saidas e as entradas conforme meus parametros ;)\n\
-            Ate mais!')
-    message = (f'Subject: {subject}\n\n{body}')
-    print('Enviando e-mail de venda agora.')
-    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
-        smtp.starttls()
-        smtp.login(email_personal, email_pwd)
-        smtp.sendmail(email_sender, email_personal, message)
-    print('E-mail enviado com sucesso.')
-
-
-# Relatório semanal (precisa ajuste)
-def email_relatorio(df):
-    smtp_server = 'smtp.gmail.com'
-    smtp_port = 587
-    subject = 'Oi chefe, aqui eh o Touring'
-    print('Preparando valores para envio da mensagem...')
-    body = (f'Aqui eu trago seu resumo semanal de desempenho!\n\n\
-            Patrimonio total hoje: R${round(df.loc[df.shape[0]-1]['patrimonio'], 2)}\n\
-            Ativo negociado: {df.loc[df.shape[0]-1]['par']}\n\
-            Rendimento da estrategia: {round(df.loc[df.shape[0]-1]['rendimento']*100, 4)}%\n\
-            Oscilacao do ativo: {round(df.loc[df.shape[0]-1]['ativo_acum']*100, 4)}%\n\
-            Quantidade de trades de referencia: {abs(df.loc[df.shape[0]-1]['marcador'])}\n\n\
-            Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
-    message = (f'Subject: {subject}\n\n{body}')
-    print('Enviando e-mail agora.')
-    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
-        smtp.starttls()
-        smtp.login(email_personal, email_pwd)
-        smtp.sendmail(email_sender, email_personal, message)
-    print('E-mail enviado com sucesso.')
-
-
-###
-# ACESSO AO SISTEMA DA BINANCE
+# BINANCE ACCESS AND INFO FUNCTION
 ###
 def carteira_binance():
     cliente = Client(api_key_backtest, api_secret_backtest)
-    print('Solicitando informações à Binance')
-    infos = cliente.get_account()  # carrega as infos do usuário
-    # Recupera as informações da carteira do usuário
+    print('Requesting information from Binance')
+    infos = cliente.get_account()  # load userr info
+    # Fetch user's wallet info
     carteira = pd.DataFrame(infos['balances'])
     numeros = ['free', 'locked']
-    carteira[numeros] = carteira[numeros].astype(float)  # transforma obj em float
+    carteira[numeros] = carteira[numeros].astype(float)  # transforms obj in float
     mask = carteira[numeros][carteira[numeros] > 0] \
-            .dropna(how='all').index  # filtro dos ativos com saldo
+            .dropna(how='all').index  # filter assets with balance
     print('Limpeza geral da carteira')
-    carteira = carteira.iloc[mask]  # mantem apenas os ativos com saldo
-    black_list = ['NFT', 'SHIB', 'BTTC']  # blacklist de ativos
-    mask = carteira[carteira['asset'].isin(black_list)].index  # registra o índice dos black
-    carteira.drop(mask, axis=0, inplace=True)  # dropa ativos black
-    print('Carteira obtida com sucesso. Ativos atuais e quantidades:')
+    carteira = carteira.iloc[mask]  # keeps only the assets with balance
+    black_list = ['NFT', 'SHIB', 'BTTC']  # asset blacklist
+    mask = carteira[carteira['asset'].isin(black_list)].index  # blacklist indexing
+    carteira.drop(mask, axis=0, inplace=True)  # filters out blacklisted assets
+    print('Wallet successfully obtained. Current assets and balances:')
     return carteira, cliente
 
 
 ###
-# HISTÓRICO DOS ATIVOS
+# ASSETS HISTORIC DATA FUNCTION
 ###
-def valores_historicos(ticker='BTCUSDT', dias=30, intervalo='15m'):
+def valores_historicos(ticker='BTCUSDT', dias=30, intervalo='15m'):  # the ticker in Binance works in pairs - here you'll want to know how much is BTC worth in USDT, for example
     if dias < 8:
         print('\n\n\n\n*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*\n\n')
-        print('IMPORTANTE! A quantidade de dias deve ser 8 ou mais dias! Este histórico NÃO VAI FUNCIONAR!\n\n')
+        print('IMPORTANT! Days ammount has to be 8 or more! This history WILL NOT WORK!\n\n')
         print('*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*#*\n\n')
     else:
         pass
-    # Definição do horizonte de tempo dos dados históricos
+    # Defines data timespan
     end_time = datetime.datetime.now()
     start_time = end_time - datetime.timedelta(days=dias)
-    # Converte o tempo para Unix (pq Binance) em milisegundos
+    # Converts time to Unix (because Binance) in miliseconds
     end_timestamp = int(end_time.timestamp()*1000)
     start_timestamp = int(start_time.timestamp()*1000)
-    # Janela de tempo estabelecida, solicita à Binance o histórico
+    # Timewindow estabilished, requests historic data
     # Endpoint da Binance
     endpoint = 'https://api.binance.com/api/v3/klines'
-    # Definição dos parâmetros da requisição
-    tickers = ticker  # compra a primeira usando a segunda
-    interval = intervalo  # outras amplitudes em https://developers.binance.com/docs/derivatives/coin-margined-futures/market-data/Kline-Candlestick-Data
+    # Requisition parameters
+    tickers = ticker 
+    interval = intervalo  # other timeframes are possible, check in https://developers.binance.com/docs/derivatives/coin-margined-futures/market-data/Kline-Candlestick-Data
     limit = 1000
     params = {'symbol': tickers, 'interval': interval,
           'endTime': end_timestamp, 'limit': limit,
           'startTime': start_timestamp}
     print('Fazendo a requisição das informações à Binance...')
-    # Realiza a requisição e salva numa lista
+    # Make the request and records it in a list
     dados = []
     while True:
         response = requests.get(endpoint, params=params)
@@ -159,105 +98,113 @@ def valores_historicos(ticker='BTCUSDT', dias=30, intervalo='15m'):
         params['startTime'] = int(klines[-1][0])+1
         time.sleep(0.1)
     print('Informações obtidas com sucesso. Configurando os dados do dataframe...')
-    # Cria um dataframe com OHLC e horários
-    # Sobre as posições de kline[n]: https://developers.binance.com/docs/derivatives/coin-margined-futures/market-data/Kline-Candlestick-Data
-#    loose_data = [[float(kline[1]), float(kline[2]), float(kline[3]), float(kline[4]), float(kline[5]), float(kline[7]), float(kline[8])] for kline in dados]
-#    historico = pd.DataFrame(loose_data, columns=['open', 'high', 'low', 'close', 'volume_ativo', 'volume_financeiro', 'qtde_negocios'])
+    # Creates a dataframe with OHLC e timestamps
+    # About kline[n] pos: https://developers.binance.com/docs/derivatives/coin-margined-futures/market-data/Kline-Candlestick-Data
     loose_data = [[float(kline[1]), float(kline[2]), float(kline[3]), float(kline[4])] for kline in dados]
     historico = pd.DataFrame(loose_data, columns=['open', 'high', 'low', 'close'])
     timestamps = [datetime.datetime.fromtimestamp(int(kline[0])/1000) for kline in dados]
     historico['timestamp'] = timestamps
     historico.set_index('timestamp', inplace=True)
     historico['par'] = tickers
-#    print('Reduzindo magnitude do volume financeiro')
-#    historico['volume_financeiro'] = historico['volume_financeiro']/1e6
-    print('Requisição do histórico concluída.')
+    print('Data request done.')
     return historico
 
 
 ###
-# CÁLCULO DOS INDICADORES
-# - Os que estão comentados não são utilizados até o presente momento
+# INDICATORS FUNCTION
+# - The commented ones are not in use per my last strategy
 ###
-def adiciona_indicadores(df, periodo=12):  # Adicionando periodo 12 pois é igual a uma hora (períodos de 5min)
-# Garman-Klass Volatility (VOLATILIDADE)
-    print('Calculando indicadores de VOLATILIDADE:')
-    print('       Volatilidade de Garman-Klass não calculada')
+    def adiciona_indicadores(df, periodo=12):  # 'periodo' translates roughly as 'timeframe' here, so '12' equals one hour (5min periods)
+# Garman-Klass Volatility
+    print('Running VOLATILITY indicators:')
+    print('       Garman-Klass Volatility not estimated')
 #    df['garman_klauss_vol'] = (((np.log(df['high']) - np.log(df['low']))**2)/2) - (2*np.log(2)-1) * ((np.log(df['close']) - np.log(df['open']))**2)
-# Bollinger Bands (VOLATILIDADE)
-    print('       Bandas de Bollinger não calculadas')
+# Bollinger Bands (VOLATILITY)
+    print('       Bollinger Bands not estimated')
 #    df['bb_low'] = pandas_ta.bbands(close=np.log1p(df['close']),
 #                                    length=periodo).iloc[:, 0]
 #    df['bb_mid'] = pandas_ta.bbands(close=np.log1p(df['close']),
 #                                    length=periodo).iloc[:, 1]
 #    df['bb_high'] = pandas_ta.bbands(close=np.log1p(df['close']),
 #                                     length=periodo).iloc[:, 2]
-# Average True Range (ATR) (VOLATILIDADE)
-    print('       Average True Range (ATR) não calculada')
+# Average True Range (ATR) (VOLATILITY)
+    print('       Average True Range (ATR) not estimated')
 #    atr = pandas_ta.atr(high=df['high'], low=df['low'],
 #                        close=df['close'], length=periodo)
 #    df['atr'] = atr.sub(atr.mean()).div(atr.std())
-# ROC (VOLATILIDADE)
-    print('       ROC não calculado')
+# ROC (VOLATILITY)
+    print('       ROC not estimated')
 #    df['roc'] = pandas_ta.roc(df['close'], length=2)
-# RSI (TENDENCIA)
-    print('Calculando indicadores de TENDENCIA:')
+# RSI (TENDENCY)
+    print('Running TENDENCY indicators:')
     print('       RSI')
     df['rsi'] = pandas_ta.rsi(close=df['close'], length=periodo)
-# MACD (TENDENCIA)
-    print('       MACD (original, normalizado e sinal) não calculado')
+# MACD (TENDENCY)
+    print('       MACD (original, normalized and signal) not estimated')
 #    macd = pandas_ta.macd(close=df['close'], length=periodo).iloc[:, 0]
 #    df['macd'] = pandas_ta.macd(close=df['close'], length=periodo).iloc[:, 0]
 #    df['macd_norm'] = macd.sub(macd.mean()).div(macd.std())
 #    df['macd_s'] = pandas_ta.macd(close=df['close'], length=periodo).iloc[:, 2]
-# Média Móvel curta (24 - 6 horas) (TENDENCIA)
-    print('       Média móvel curta (15min)')
+# Moving Average SHORT (TENDENCY)
+    print('       Moving Average (short)')
     df['mmCurta'] = pandas_ta.sma(df['close'], length=periodo/4)
-# Média Móvel média (192 - 2 dias) (TENDENCIA)
-    print('       Média móvel média (seis horas)')
+# Moving Average INTERMEDIARY (TENDENCY)
+    print('       Moving Average (intermediary)')
     df['mmMedia'] = pandas_ta.sma(df['close'], length=periodo*30)
-# Média Móvel longa (672 - 7 dias) (TENDENCIA)
-    print('       Média móvel longa (doze horas)')
+# Moving Average LONG (TENDENCY)
+    print('       Moving Average (long)')
     df['mmLonga'] = pandas_ta.sma(df['close'], length=periodo*60)
-# Supertrend (TENDENCIA)
-    print('       Supertrend não calculado')
+# Supertrend (TENDENCY)
+    print('       Supertrend not estimated')
 #    df['supertrend'] = pandas_ta.supertrend(high=df['high'],
 #                                            low=df['low'],
 #                                            close=df['close'],
 #                                            offset=1)['SUPERTd_7_3.0']
 #
-    print('Informações adicionadas ao dataframe com sucesso. Remover NaNs manualmente.')
+    print('Successfully added information to dataframe. Manally remove NaNs.')
 
 
 ###
-# BACKTEST
+# BACKTEST FUNCTION
 ###
+
+# This is the backbone of the whole script. I use a logic in which the bot uses 'slices' of capital
+# to organize its process of buying and selling assets.
+# Its parameters are as follows:
+#   max_ordens  = indirectly defines the amount of capital to be bought or sold at a given time,
+#                 just divide the total capital with this number and that's how much it will buy/sell
+#   saldo_inicial = initial balance for the calculation
+#   compra = vector of buying orders, calculated separately
+#   venda = vector of selling orders, calculated separately
+#   tx_comissao = ammount charged by the exchange in every order
+#   grafico = whether the user want to see a graph (TRUE) or not (FALSE, default)
+#
 def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comissao = 0.001, grafico=False):
-    # Definição inicial dos componentes utilizados em backtesting
-    carteira_full = max_ordens  # Máximo de ordens abertas ao mesmo tempo
+    # Base parameters for backtesting
+    carteira_full = max_ordens  # Maximum 'slices' of the whole balance (all USD + all crypto assets)
     periodo = df.copy()
     marcador = 1
     periodo['vender'] = 0
     periodo['comprar'] = 0
-    periodo['sinal_est'] = 0  # Cria sinais neutros
-    periodo['cv'] = 0  # Cria estados neutros, sem ordem de compra ou venda
-    periodo['marcador'] = 0  # Cria marcador de compra neutro
-    periodo['saldo_inicial'] = 0.0
-    periodo['saldo_final'] = 0.0
-    periodo['saldo_cart'] = 0.0
-    periodo['patrimonio'] = 0.0
-    periodo.loc[venda, 'vender'] = -1  # Registro backtest venda
-    periodo.loc[compra, 'comprar'] = 1  # Registro backtest compra
-    periodo['sinal_est'] = periodo['vender'] + periodo['comprar']
-    inicio = periodo.index[0]
+    periodo['sinal_est'] = 0  # Creates neutral signals throughout the df, marked by the trade strategy in use
+    periodo['cv'] = 0  # Creates neutral states, no sell or buy order by default, used whether there's an actual trade order
+    periodo['marcador'] = 0  # Creates neutral marker, used for the weekly reports in the real money script
+    periodo['saldo_inicial'] = 0.0  # initial balance
+    periodo['saldo_final'] = 0.0  # final balance
+    periodo['saldo_cart'] = 0.0  # balance of crypto(s) in wallet
+    periodo['patrimonio'] = 0.0  # whole balance (free USD + cryptos)
+    periodo.loc[venda, 'vender'] = -1  # Selling backtest record
+    periodo.loc[compra, 'comprar'] = 1  # Buying backtest record
+    periodo['sinal_est'] = periodo['vender'] + periodo['comprar']  # marker used to avoid 'weak' trade signals
+    inicio = periodo.index[0]  # beginnig of the timeframe
     periodo.loc[inicio, 'saldo_inicial'] = saldo_inicial
-    # Verifica se tem algum sinal de ordem de compra
+    # Check for any buying signal, returns error if there is none
     if periodo[periodo['sinal_est'] == 1]['sinal_est'].sum() == 0:
         print('\n\n###################################################################################')
         print('###                                                                             ###')
-        print('###        >>> Estratégia sem sinal de COMPRA no período informado! <<<         ###')
+        print('###          >>> Strategy with NO BUYING signal in this timeframe! <<<          ###')
         print('###                                                                             ###')
-        print('###    Vai dar erro com "periodo" pq eu deletei para quebrar a função mesmo:    ###')
+        print('###    Backtest will return an error with "periodo", I broke it itentionally:   ###')
         print('###                                                                             ###')
         print('###################################################################################\n\n')
         del periodo
@@ -266,9 +213,9 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
     if periodo[periodo['sinal_est'] == -1]['sinal_est'].sum() == 0:
         print('\n\n###################################################################################')
         print('###                                                                             ###')
-        print('###         >>> Estratégia sem sinal de VENDA no período informado! <<<         ###')
+        print('###          >>> Strategy with NO SELLING signal in this timeframe! <<<         ###')
         print('###                                                                             ###')
-        print('###    Vai dar erro com "periodo" pq eu deletei para quebrar a função mesmo:    ###')
+        print('###    Backtest will return an error with "periodo", I broke it itentionally:   ###')
         print('###                                                                             ###')
         print('###################################################################################\n\n')
         del periodo
@@ -277,25 +224,24 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
 #
     for idx in periodo.index:
         status = 0
-    # Recupera o saldo final anterior, igual ao inicial se for a primeira observação
+    # Fetch previous initial balance, the same as initial balance if it's the first point of data
         if idx == inicio:
             periodo.loc[idx, 'saldo_inicial'] = saldo_inicial
             periodo.loc[idx, 'patrimonio'] = saldo_inicial
         else:
             periodo.loc[idx, 'saldo_inicial'] = periodo.loc[(idx - 1), 'saldo_final']
-    # Se a carteira estiver vazia, não tem recurso para comprar,
-    # nem verifica os sinais de compra
-    # E se a carteira estiver cheia novamente, refaz o valor das fatias
+    # If you're out of balance to buy, the function don't bother checking buy signals
+    # If the wallet is just free USD, Touring recalculates the slices values
         if carteira_full == 0:
-            print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Sem recursos para comprar mais nada')
+            print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). No free resources to buy anything else')
             pass
         elif carteira_full == max_ordens:
             fatia = periodo.loc[idx, 'saldo_inicial']/carteira_full
         else:
             pass
-    # PROCESSAMENTO DE COMPRAS
-        if periodo.loc[idx, 'sinal_est'] == 1:  # SINAL DE COMPRA
-            if carteira_full == 0:  # SE CARTEIRA VAZIA, NÃO TEM COMO COMPRAR
+    # BUY ORDERS PROCESSING
+        if periodo.loc[idx, 'sinal_est'] == 1:  # Buy signal
+            if carteira_full == 0:  # If there's no resources available to buy, there's no way to buy something
                 pass
             else:
                 periodo.loc[idx, 'cv'] = 1
@@ -308,18 +254,17 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                 status = 1
                 periodo.loc[idx, 'marcador'] = marcador
                 periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-#                email_compra(periodo)
-                print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Compra realizada!')
-    # PROCESSAMENTO DE VENDAS
-        elif periodo.loc[idx, 'sinal_est'] == -1:  # SINAL DE VENDA
-            if carteira_full == max_ordens:  # SE CARTEIRA CHEIA, NÃO TEM O QUE VENDER
+                print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). Buy order processed!')
+    # SELL ORDERS PROCESSING
+        elif periodo.loc[idx, 'sinal_est'] == -1:  # Sell signal
+            if carteira_full == max_ordens:  # If there's only resources (so, no crypto in balance), there's nothing to sell
                 pass
             else:
                 periodo.loc[idx, 'cv'] = -1
                 if idx < 3:
                     pass
                 else:
-                    if idx == periodo.index[-1]:  # SE FOR ÚLTIMO PERÍODO, VENDE TODO SALDO AO PREÇO DO FECHAMENTO DE AGORA
+                    if idx == periodo.index[-1]:  # If it is the last point of data, sells everything
                         valor = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].iloc[-1]
                         variacao = (periodo.loc[(idx), 'close'] - valor_atual)/valor_atual
                         venda = (fatia + (fatia * variacao))*(1-tx_comissao)
@@ -330,7 +275,6 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                         periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
                         carteira_full += 1
                         print(f'Backtesting finalizado! ***  Zerando posições em fim de período  ***')
-#                    email_venda(periodo)
                     else:
                         valor_atual = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].iloc[-1]
                         variacao = (periodo.loc[(idx + 1), 'close'] - valor_atual)/valor_atual
@@ -341,7 +285,6 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                         periodo.loc[idx, 'marcador'] = marcador*-1
                         periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
                         carteira_full += 1
-#                    email_venda(periodo)
                         if carteira_full == max_ordens:
                             print(f'Backtesting {round(((idx+1)/periodo.shape[0])*100, 2)}% ({idx+1} de {periodo.shape[0]}). ***  Todas posições zeradas!  ***')
                             marcador += 1
@@ -350,7 +293,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                         status = -1
         else:
             pass
-    # PROCESSAMENTO DE MOMENTOS SEM NEGOCIAÇÃO
+    # DATA WITH NO TRADE ORDERS PROCESSING
         if status == 0:
             if idx == periodo.index[0]:
                 periodo.loc[idx, 'saldo_final'] = periodo.loc[idx, 'saldo_inicial']
@@ -361,7 +304,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                 periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
         else:
             pass
-        if idx == periodo.index[-1]:  # SE FOR ÚLTIMO PERÍODO, VENDE TODO SALDO AO PREÇO DO FECHAMENTO DE AGORA
+        if idx == periodo.index[-1]:  # If it is the last point of data, sells everything
             valor_atual = periodo[periodo['marcador'] == periodo['marcador'].max()]['close'].iloc[-1]
             variacao = (periodo.loc[(idx), 'close'] - valor_atual)/valor_atual
             fatia = periodo.loc[(idx), 'saldo_cart']
@@ -370,7 +313,7 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
             periodo.loc[idx, 'saldo_cart'] = 0
             periodo.loc[idx, 'marcador'] = marcador*-1
             periodo.loc[idx, 'patrimonio'] = periodo.loc[idx, 'saldo_final'] + periodo.loc[idx, 'saldo_cart']
-            print(f'Backtesting finalizado! ***  Zerando posições em fim de período  ***')
+            print(f'Backtesting finished! ***  Clearing positions at the end of the period  ***')
         else:
             pass
     periodo['rendimento'] = (periodo['patrimonio']/periodo['patrimonio'].iloc[0])-1
@@ -379,25 +322,25 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
     saldo_maximo = round(periodo.patrimonio.max(), 2)
     rend_est = round(((saldo_final-saldo_inicial)/saldo_inicial)*100, 2)
     rend_at = round(((periodo.close.iloc[-1]/periodo.open.iloc[0])-1)*100, 2)
-    print(f'\n\nSaldo inicial hipotético: R${saldo_inicial}')
-    print(f'Saldo final: R${saldo_final}')
-    print(f'Rendimento total da estratégia: {rend_est}%')
-    print(f'Rendimento total do ativo: {rend_at}%')
+    print(f'\n\nInitial hypothetical balance: US${saldo_inicial}')
+    print(f'End balance: US${saldo_final}')
+    print(f'Total earnings from the strategy: {rend_est}%')
+    print(f'Total variation by the asset: {rend_at}%')
     if rend_at > rend_est:
-        print("\n\nRESULTADO: a estratégia NÃO SUPEROU o rendimento do ativo no período considerado!")
+        print("\n\nRESULT: this strategy DO NOT outperformed the asset in the considered timeframe!")
     else:
-        print("\n\nRESULTADO: Parabéns, a estratégia SUPEROU o rendimento do ativo no período considerado!")
-    print('\n\n   Características da estratégia:')
-    print(f'Número de ordens simultâneas: {max_ordens}')
-    print(f'Número de trades de compra realizados: {periodo[periodo['cv'] == 1]['cv'].sum()}')
-    print(f'Número de trades de venda realizados: {abs(periodo[periodo['cv'] == -1]['cv'].sum())}')
-    print(f'Horizonte de tempo: {dias} dias')
-    print(f'Intervalo das observações: ' + str(intervalo) + 'm')
-    print(f'Patrimônio máximo no período: R${saldo_maximo}')
-    print(f'Valor máximo do ativo no período: R${periodo.close.max()}')
-    print(f'Valor mínimo do ativo no período: R${periodo.close.min()}')
+        print("\n\nRESULT: Congratulations! This strategy OUTPERFORMED the asset in the considered timeframe!")
+    print('\n\n   Strategy characteristics:')
+    print(f'# of slices: {max_ordens}')
+    print(f'# of buying trades: {periodo[periodo['cv'] == 1]['cv'].sum()}')
+    print(f'# of selling trades: {abs(periodo[periodo['cv'] == -1]['cv'].sum())}')
+    print(f'Time horizon: {dias} days')
+    print(f'Timeframe: ' + str(intervalo) + 'm')
+    print(f'Max equity over time: US${saldo_maximo}')
+    print(f'Asset max value over time: US${periodo.close.max()}')
+    print(f'Asset min value overr time: US${periodo.close.min()}')
     if grafico == True:
-        # Criação das flags entrada/saída
+        # Creates entry/exit flags
         periodo[['entrada', 'saida']] = 0
         mask = periodo['marcador'] != 0
         for i in periodo[mask]['marcador']:
@@ -409,239 +352,214 @@ def backtest(df, max_ordens=10, saldo_inicial=1000, compra=0, venda=0, tx_comiss
                     periodo.loc[idxm1, 'saida'] = 1
             else:
                 pass
-        # Gera os pontos do scatter
+        # Generates scatterplot
         scatter_entrada = []
         scatter_saida = []
         for point in periodo[(periodo.entrada == 1)].index:
             scatter_entrada.append(periodo.loc[point, ['timestamp', 'close']])
         for point in periodo[(periodo.saida == 1)].index:
             scatter_saida.append(periodo.loc[point, ['timestamp', 'close']])
-        # Cria os dois gráficos
+        # Creates both charts
         plt.subplot(211)
         plt.plot(periodo.set_index(keys='timestamp')['mmLonga'],
                  color='green',
-                 label='MM Longa (1 semana)')
+                 label='Long MA')  # MA = 'moving average'
         plt.plot(periodo.set_index(keys='timestamp')['mmMedia'],
                  color='blue',
-                 label='MM Média (2 dias)')
+                 label='Intermediary MA')
         plt.plot(periodo.set_index(keys='timestamp')['mmCurta'],
                  color='red',
-                 label='MM Curta (6 horas)')
+                 label='Short MA')
         plt.plot(periodo.set_index(keys='timestamp')['close'],
                  color='gray',
-                 label='Preço de fechamento do ativo')
+                 label='Closing price')
         plt.scatter(x=pd.DataFrame(scatter_entrada)['timestamp'],
                     y=pd.DataFrame(scatter_entrada)['close'],
                     color='green',
                     marker='^',
-                    label='Ponto de entrada',
+                    label='Entry point',
                     zorder=10)
         plt.scatter(x=pd.DataFrame(scatter_saida)['timestamp'],
                     y=pd.DataFrame(scatter_saida)['close'],
                     color='red',
                     marker='v',
-                    label='Ponto de saída',
+                    label='Exit point',
                     zorder=10)
-        plt.xlabel("Tempo")
-        plt.ylabel("Valor do ativo")
-        plt.title('Gráfico do histórico do valor do ativo')
+        plt.xlabel("Time")
+        plt.ylabel("Asset price")
+        plt.title('Asset value historic chart')
         plt.legend()
         plt.subplot(212)
         plt.plot(periodo.set_index(keys='timestamp')['ativo_acum'],
-                 color='orange', label='Rendimento do Ativo',
+                 color='orange', label='Asset oscilation',
                  zorder=5)
         plt.plot(periodo.set_index(keys='timestamp')['rendimento'],
-                 color='magenta', label='Rendimento da Estratégia',
+                 color='magenta', label='Strategy earnings',
                  zorder=7)
-        plt.xlabel("Tempo")
-        plt.ylabel("Rentabilidade")
-        plt.title('Gráfico comparativo da rentabilidade (Ativo x Estratégia)')
+        plt.xlabel("Time")
+        plt.ylabel("Profitability")
+        plt.title('Comparative chart of profitability (Asset x Strategy)')
         plt.legend()
         plt.show()
     elif grafico == False:
         pass
     else:
-        print('\n*Não foi possível desenhar o gráfico!*\nHiperparâmetro "grafico" deve ser True ou False, informado qualquer outra coisa.')
+        print('\n*Unable to draw the chart!*\nHyperparameter "grafico" must be either True ou False, informed anything else.')
     return periodo
 
+
+###
+# BACKTEST SUMMARY FUNCTION
+#
+# Just in case you don't wanna perform all the backtest calculations again just to see the summary or the chart
+###
 
 def backtest_summary(df, max_ordens=10, saldo_inicial=1000, grafico=False):
     saldo_final = round(df['saldo_final'].iloc[-1], 2) + round(df['saldo_cart'].iloc[-1], 2)
     saldo_maximo = round(df.patrimonio.max(), 2)
     rend_est = round(((saldo_final-saldo_inicial)/saldo_inicial)*100, 2)
     rend_at = round(((df.close.iloc[-1]/df.open.iloc[0])-1)*100, 2)
-    print(f'\n\nSaldo inicial hipotético: R${saldo_inicial}')
-    print(f'Saldo final: R${saldo_final}')
-    print(f'Rendimento total da estratégia: {rend_est}%')
-    print(f'Rendimento total do ativo: {rend_at}%')
+    print(f'\n\nInitial hypothetical balance: US${saldo_inicial}')
+    print(f'End balance: US${saldo_final}')
+    print(f'Total earnings from the strategy: {rend_est}%')
+    print(f'Total variation by the asset: {rend_at}%')
     if rend_at > rend_est:
-        print("\n\nRESULTADO: a estratégia NÃO SUPEROU o rendimento do ativo no período considerado!")
+        print("\n\nRESULT: this strategy DO NOT outperformed the asset in the considered timeframe!")
     else:
-        print("\n\nRESULTADO: Parabéns, a estratégia SUPEROU o rendimento do ativo no período considerado!")
-    print('\n\n   Características da estratégia:')
-    print(f'Número de ordens simultâneas: {max_ordens}')
-    print(f'Número de trades de compra realizados: {df[df['cv'] == 1]['cv'].sum()}')
-    print(f'Número de trades de venda realizados: {abs(df[df['cv'] == -1]['cv'].sum())}')
-    print(f'Horizonte de tempo: {dias} dias')
-    print(f'Intervalo das observações: ' + str(intervalo) + 'm')
-    print(f'Patrimônio máximo no período: R${saldo_maximo}')
-    print(f'Valor máximo do ativo no período: R${df.close.max()}')
-    print(f'Valor mínimo do ativo no período: R${df.close.min()}')
+        print("\n\nRESULT: Congratulations! This strategy OUTPERFORMED the asset in the considered timeframe!")
+    print('\n\n   Strategy characteristics:')
+    print(f'# of slices: {max_ordens}')
+    print(f'# of buying trades: {periodo[periodo['cv'] == 1]['cv'].sum()}')
+    print(f'# of selling trades: {abs(periodo[periodo['cv'] == -1]['cv'].sum())}')
+    print(f'Time horizon: {dias} days')
+    print(f'Timeframe: ' + str(intervalo) + 'm')
+    print(f'Max equity over time: US${saldo_maximo}')
+    print(f'Asset max value over time: US${periodo.close.max()}')
+    print(f'Asset min value overr time: US${periodo.close.min()}')
     if grafico == True:
-        # Criação das flags entrada/saída
-        df[['entrada', 'saida']] = 0
-        mask = df['marcador'] != 0
-        for i in df[mask]['marcador']:
+        # Creates entry/exit flags
+        periodo[['entrada', 'saida']] = 0
+        mask = periodo['marcador'] != 0
+        for i in periodo[mask]['marcador']:
             if i > 0:
-                for idx1 in (df[df['marcador'] == i]).index:
-                    df.loc[idx1, 'entrada'] = 1
+                for idx1 in (periodo[periodo['marcador'] == i]).index:
+                    periodo.loc[idx1, 'entrada'] = 1
             elif i < 0:
-                for idxm1 in (df[df['marcador'] == i]).index:
-                    df.loc[idxm1, 'saida'] = 1
+                for idxm1 in (periodo[periodo['marcador'] == i]).index:
+                    periodo.loc[idxm1, 'saida'] = 1
             else:
                 pass
-        # Gera os pontos do scatter
+        # Generates scatterplot
         scatter_entrada = []
         scatter_saida = []
-        for point in df[(df.entrada == 1)].index:
-            scatter_entrada.append(df.loc[point, ['timestamp', 'close']])
-        for point in df[(df.saida == 1)].index:
-            scatter_saida.append(df.loc[point, ['timestamp', 'close']])
-        # Cria os dois gráficos
+        for point in periodo[(periodo.entrada == 1)].index:
+            scatter_entrada.append(periodo.loc[point, ['timestamp', 'close']])
+        for point in periodo[(periodo.saida == 1)].index:
+            scatter_saida.append(periodo.loc[point, ['timestamp', 'close']])
+        # Creates both charts
         plt.subplot(211)
-        plt.plot(df.set_index(keys='timestamp')['mmLonga'],
+        plt.plot(periodo.set_index(keys='timestamp')['mmLonga'],
                  color='green',
-                 label='MM Longa (1 semana)')
-        plt.plot(df.set_index(keys='timestamp')['mmMedia'],
+                 label='Long MA')  # MA = 'moving average'
+        plt.plot(periodo.set_index(keys='timestamp')['mmMedia'],
                  color='blue',
-                 label='MM Média (2 dias)')
-        plt.plot(df.set_index(keys='timestamp')['mmCurta'],
+                 label='Intermediary MA')
+        plt.plot(periodo.set_index(keys='timestamp')['mmCurta'],
                  color='red',
-                 label='MM Curta (6 horas)')
-        plt.plot(df.set_index(keys='timestamp')['close'],
+                 label='Short MA')
+        plt.plot(periodo.set_index(keys='timestamp')['close'],
                  color='gray',
-                 label='Preço de fechamento do ativo')
+                 label='Closing price')
         plt.scatter(x=pd.DataFrame(scatter_entrada)['timestamp'],
                     y=pd.DataFrame(scatter_entrada)['close'],
                     color='green',
                     marker='^',
-                    label='Ponto de entrada',
+                    label='Entry point',
                     zorder=10)
         plt.scatter(x=pd.DataFrame(scatter_saida)['timestamp'],
                     y=pd.DataFrame(scatter_saida)['close'],
                     color='red',
                     marker='v',
-                    label='Ponto de saída',
+                    label='Exit point',
                     zorder=10)
-        plt.xlabel("Tempo")
-        plt.ylabel("Valor do ativo")
-        plt.title('Gráfico do histórico do valor do ativo')
+        plt.xlabel("Time")
+        plt.ylabel("Asset price")
+        plt.title('Asset value historic chart')
         plt.legend()
         plt.subplot(212)
-        plt.plot(df.set_index(keys='timestamp')['ativo_acum'],
-                 color='orange', label='Rendimento do Ativo',
+        plt.plot(periodo.set_index(keys='timestamp')['ativo_acum'],
+                 color='orange', label='Asset oscilation',
                  zorder=5)
-        plt.plot(df.set_index(keys='timestamp')['rendimento'],
-                 color='magenta', label='Rendimento da Estratégia',
+        plt.plot(periodo.set_index(keys='timestamp')['rendimento'],
+                 color='magenta', label='Strategy earnings',
                  zorder=7)
-        plt.xlabel("Tempo")
-        plt.ylabel("Rentabilidade")
-        plt.title('Gráfico comparativo da rentabilidade (Ativo x Estratégia)')
+        plt.xlabel("Time")
+        plt.ylabel("Profitability")
+        plt.title('Comparative chart of profitability (Asset x Strategy)')
         plt.legend()
         plt.show()
     elif grafico == False:
         pass
     else:
-        print('\n*Não foi possível desenhar o gráfico!*\nHiperparâmetro "grafico" deve ser True ou False, informado qualquer outra coisa.')
+        print('\n*Unable to draw the chart!*\nHyperparameter "grafico" must be either True ou False, informed anything else.')
 
 
-####
-# VERIFICAÇÕES diversas na Binance, caso necessárias:
-###
-# Verifica a tabela de comissões compra/venda
-infos['commissionRates']
+#############################################################
+#                                                           #
+#               Some strategies for you to try              #
+#                                                           #
+#  -------------------------------------------------------  #
+#                                                           #
+#   Down here  is where you'll  be  able to test  different #
+# strategies that  come up in your mind.  I'll give you two #
+# strategies for you to start on. One is based in moving a- #
+# verages  (simple as that) and the other is based in a few #
+# more indicators,  the  bot  then estimates to whether the #
+# strategy   has  more  buying  strenght  or  more  selling #
+# strength and act accordingly.                             #
+#                                                           #
+#############################################################
 
-# Verifica as autorizações do cliente (trade/saque/depósito)
-infos['canTrade']
-infos['canWithdraw']
-infos['canDeposit']
-
-# Verifica a conta pela qual são feitas as negociações (margin/spot)
-infos['accountType']
-
-# Retorna o user ID na corretora
-infos['uid']
-
-
-###
-# Estratégia 2 - Perfeita para Bitcoin
-###
-# BACKTEST 365d:
-# 576,10% em BTC, com 3 ordens
-# 237,24% em ETH, com 3 ordens
-# 42,89% em YIF, com 3 ordens
+#######
 #
-# BACKTEST 180d:
-# 23,15% sobre BTC, com 3 ordens
-# 7,83% sobre ETH, com 3 ordens
-# -40,28% em YIF
-
-###
-# BACKTESTING
+# !!! FIRST STRATEGY STARTS HERE !!!
 #
-# Ativos de maior valor unitário Binance
-# BTCUSDT - bitcoin
-# ETHUSDT - ethereum
-# YFIUSDT - yearn.finance (?)
+# Strategy based in moving averages, trading bitcoin
 #
-# Ativos de maior valor unitário CoinMarketCap
-# Bitcoin (BTC)
-# Tether Gold (XAUt)
-# Ethereum (ETH)
-# Maker (MKR)
-# BNB (BNB)
-###
+#######
 
-dias = 90
-intervalo = 5
-historico = valores_historicos(dias=dias,
-                               intervalo=str(str(intervalo)+'m'),
+# First, let's fetch historical data
+days = 90  # fetch 90 days worth of data...
+interval = 15  # ...for every 'N' minutes timeframe
+historico = valores_historicos(dias=days,
+                               intervalo=str(str(interval)+'m'),
                                ticker='BTCUSDT')
 adiciona_indicadores(historico)
 historico = historico.dropna()
 historico = historico.reset_index()
 
-
-teste_compra = []
-teste_venda = []
-defasagem = 4  # '24' representa 6h, x4 para fechar um dia e x7 para uma semana
+# Then we create vectors with trade signals
+teste_compra = []  # creates a vector with buying signals
+teste_venda = []  # creates a vector with selling signals
+defasagem = 4  # '4' means 1h (15min x 4 = 1 hour)
 ##########################################################
-#                 Parâmetros de COMPRA:                  #
+#                  BUYING parameters:                    #
 ##########################################################
 for idx in historico.index:
     pm1h = ((historico.loc[idx-4:idx]['open'] + historico.loc[idx-4:idx]['close'])/2).mean()
     pm2h = ((historico.loc[idx-8:idx]['open'] + historico.loc[idx-8:idx]['close'])/2).mean()
     pm3h = ((historico.loc[idx-12:idx]['open'] + historico.loc[idx-12:idx]['close'])/2).mean()
     if idx >= defasagem:
-        # Se o preço de fechamento estiver em baixa seguida na última hora não libera compra
-#        if ((historico.loc[idx-4, 'open'] > historico.loc[idx-3, 'open']) &
-#                (historico.loc[idx-3, 'open'] > historico.loc[idx-2, 'open']) &
-#                (historico.loc[idx-2, 'open'] > historico.loc[idx-1, 'open']) &
-#                (historico.loc[idx-1, 'open'] > historico.loc[idx, 'open']) &
-#                (historico.loc[idx, 'mmLonga'] > historico.loc[idx, 'mmCurta'])):
-#            teste_compra.append(False)
-        # Se a média dos preços estiver caindo nas última hora, inibe compra
+        # If the average price is hourly going down in the last three hours, inhibits buying trades
         if (pm3h > pm2h) & (pm2h > pm1h) & (pm1h > historico.loc[idx, 'open']):
             teste_compra.append(False)
         else:
             if (historico.loc[idx-1, 'close'] <= historico.loc[idx-defasagem:idx-1, 'close'].min()):
                 teste_compra.append(False)
-#           Registra compra se o preço de fechamento for maior do que o preço de abertura nos dois últimos períodos consecutivamente
+            # Registers a buy order if the closing price is greater then the opening price from the last two consecutive periods
             else:
                 teste_compra.append((historico.loc[(idx-1), 'close'] > historico.loc[idx-1, 'open']) &
                                     (historico.loc[idx-2, 'close'] > historico.loc[idx-2, 'open']))
-#                teste_compra.append((historico.loc[(idx-1), 'high'] < historico.loc[idx, 'high']) &
-#                                    (historico.loc[idx, 'mmCurta'] > historico.loc[idx, 'mmLonga']))
     else:
         if idx >= 2:
             if historico.loc[idx, 'open'] < historico.loc[idx-1, 'mmCurta']:
@@ -652,10 +570,10 @@ for idx in historico.index:
         else:
             teste_compra.append(False)
 ##########################################################
-#                  Parâmetros de VENDA:                  #
+#                  SELLING parameters:                   #
 ##########################################################
     if idx >= defasagem:
-        # Se o preço de fechamento estiver em baixa seguida na última hora marca como #venda
+        # If the closing price is going down for the last hour, registers a sell order
         if((historico.loc[idx-4, 'close'] > historico.loc[idx-3, 'close'])
                 (historico.loc[idx-3, 'close'] > historico.loc[idx-2, 'close']) &
                 (historico.loc[idx-2, 'close'] > historico.loc[idx-1, 'close']) &
@@ -672,72 +590,88 @@ for idx in historico.index:
             teste_venda.append(False)
     else:
         print('Algo de muito bizarro aconteceu, essa print não estava prevista!')
-
+#######
 #
-dias = 30
-intervalo = 5
-historico = valores_historicos(dias=dias,
-                               intervalo=str(str(intervalo)+'m'),
+# !!! FIRST STRATEGY ENDS HERE !!!
+#
+# Just execute the code above to generate the buy/sell signals
+#
+#######
+
+
+
+
+#######
+#
+# !!! SECOND STRATEGY STARTS HERE !!!
+#
+# Strategy based in buy/sell strenghts, trading bitcoin
+#
+#######
+
+# Again, first we fetch historical data but then we go straight to the strategy
+days = 90
+interval = 15
+historico = valores_historicos(dias=days,
+                               intervalo=str(str(interval)+'m'),
                                ticker='BTCUSDT')
 adiciona_indicadores(historico)
 historico = historico.dropna()
 historico = historico.reset_index()
 #
 ##########################################################
-#                  Parâmetros de FORÇA:                  #
+#                 STRENGTH parameters:                   #
 ##########################################################
 historico['forca_venda'] = 0
-tempo = 6 # N períodos de 5min (período do ticker)
+tempo = 4 # periods of 'interval' minutes, as stated above, meaning 4 here = 1 hour (4 periods of 15min)
 pm1 = (historico.loc[idx-tempo:idx]['close']).mean()
 pm2 = (historico.loc[idx-(tempo*2):idx-tempo]['close']).mean()
 pm3 = (historico.loc[idx-(tempo*3):idx-(tempo*2)]['close']).mean()
-#pm4 = (historico.loc[idx-(tempo*4):idx-(tempo*3)]['close']).mean()
 for idx in historico.index:
     bear = 0
-    if historico.loc[idx, 'mmCurta'] < historico.loc[idx, 'close']:
+    if historico.loc[idx, 'mmCurta'] < historico.loc[idx, 'close']: # if the closing price is higher then the short MA, adds one point of strength to selling forces
         bear += 1
     else:
         pass
-    if historico.loc[idx, 'mmMedia'] > historico.loc[idx, 'mmCurta']:
+    if historico.loc[idx, 'mmMedia'] > historico.loc[idx, 'mmCurta']: # if the intermediary MA is higher then the short MA, adds one point of strength to selling forces
         bear += 1
     else:
         pass
-    if historico.loc[idx, 'mmLonga'] > historico.loc[idx, 'mmMedia']:
+    if historico.loc[idx, 'mmLonga'] > historico.loc[idx, 'mmMedia']:  # if the long MA is higher then the intermediary MA, adds one point of strength to selling forces
         bear += 1
     else:
         pass
-    if historico.loc[idx, 'rsi'] >= 70:
+    if historico.loc[idx, 'rsi'] >= 70:  # if the RSI parameter is over 70, adds two points of strength to selling forces
         bear += 2
     else:
         pass
     if idx < tempo:
         pass
     else:
-#        if (pm4 > pm3) & (pm3 > pm2) & (pm2 > pm1) & (pm1 > historico.loc[idx, 'close']):
-        if (pm3 > pm2) & (pm2 > pm1) & (pm1 > historico.loc[idx, 'close']):
+        if (pm3 > pm2) & (pm2 > pm1) & (pm1 > historico.loc[idx, 'close']):  # if the average price is going down for the last three hours, in consecutive markings, adds six points of strength to selling forces
             bear += 6
         else:
             pass
-    historico.loc[idx, 'bear'] = bear
+    historico.loc[idx, 'bear'] = bear  # records the selling forces
 #
 historico['bull'] = 0
-uma_hora = 12  # 12 períodos de 5min (horizonte de tempo do ticker) em 1h
+uma_hora = 4  # I created other object, has the same use of 'tempo' above
 horas = uma_hora * 48
 for idx in historico.index:
     bull = 0
-    if historico.loc[idx, 'close'] > historico.loc[idx, 'mmCurta']:
+    if historico.loc[idx, 'close'] > historico.loc[idx, 'mmCurta']:  # if the closing price is higher than the short MA, adds one point of strength to buying forces
         bull += 1
     else:
         pass
-    if historico.loc[idx, 'mmCurta'] > historico.loc[idx, 'mmMedia']:
+    if historico.loc[idx, 'mmCurta'] > historico.loc[idx, 'mmMedia']:  # if the short MA is higher then the intermediary MA, adds one point of strength to buying forces
         bull += 1
     else:
         pass
-    if historico.loc[idx, 'mmMedia'] > historico.loc[idx, 'mmLonga']:
+    if historico.loc[idx, 'mmMedia'] > historico.loc[idx, 'mmLonga']:  # if the intermediary MA is higher then the long MA, adds one point of strength to buying forces
         bull += 1
     else:
         pass
-    if historico.loc[idx, 'rsi'] <= 30:
+    if historico.loc[idx, 'rsi'] <= 30:  # if the RSI parameter is under (or equal to) 30, adds two points of strength to buying forces
         bull += 2
     else:
         pass
@@ -747,23 +681,32 @@ for idx in historico.index:
         maxima = historico.loc[(idx-horas):idx, 'close'].max()
         minima = historico.loc[(idx-horas):idx, 'close'].min()
         amplitude = maxima - minima
-        if (amplitude < historico.loc[idx, 'close']*0.00618) or (amplitude > historico.loc[idx, 'close']*0.1382):
+        if (amplitude < historico.loc[idx, 'close']*0.00618) or (amplitude > historico.loc[idx, 'close']*0.1382):  # playing with Fibonacci numbers here: if the spread of the asset's price is out of these parameters, subtract three points of strength from the buying forces
             bull -= 3
         else:
             pass
-    historico.loc[idx, 'bull'] = bull
+historico.loc[idx, 'bull'] = bull  # records the buying forces
 #
-historico['acao'] = historico['bull'] - historico['bear']
+historico['acao'] = historico['bull'] - historico['bear']  # the forces confront here, generating buy signals, sell signals or just nothing to do
 #
-teste_compra = historico['acao'] > 0
-teste_venda = historico['acao'] < 0
+teste_compra = historico['acao'] > 0  # creates a vector with the buying signals
+teste_venda = historico['acao'] < 0  # creates a vector with the selling signals
+#######
 #
-ordens = 2
-thiago = backtest(historico, saldo_inicial=1000, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=False)
+# !!! SECOND STRATEGY ENDS HERE !!!
+#
+#######
 
-backtest_summary(thiago, max_ordens=ordens, grafico=True)
 
-ticker='BTCUSDT'
-max_ordens = 3
-carteira, cliente = carteira_binance()
-print(carteira)
+
+#######
+#
+# Now, the backtest itself.
+#
+#######
+
+ordens = 2  # number of slices of the whole equity available, in money power
+strategy = backtest(historico, saldo_inicial=1000, max_ordens=ordens, compra=teste_compra, venda=teste_venda, grafico=False)
+
+# You can call the summary function too, once the backtest had run
+backtest_summary(strategy, max_ordens=ordens, grafico=True)
