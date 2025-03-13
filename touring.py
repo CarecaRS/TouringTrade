@@ -669,11 +669,11 @@ def touring(max_ordens=3, compra=None, venda=None, ticker=None):
         print('E-mail enviado com sucesso.')  # final do protocolo de envio de e-mail quando Binance der erro
 
 
-####################################################
-#                                                  #
-#            Trading Area a partir daqui           #
-#                                                  #
-####################################################
+######################################
+#                                    #
+#            Trading Area            #
+#                                    #
+######################################
 
 # Verifica o acesso à carteira da Binance. Importante quando estiver
 # rodando a partir de outro local que não o próprio PC. Se algo aconteceu
@@ -686,9 +686,7 @@ except:
     carteira_off()
     print('\n\nAbortando.')
 
-# O ticker é a moeda (ou o par de moedas, no caso da Binance) que está se negociando
 ticker = 'BTCUSDT'  # Aqui, BTC adquirido/comprado com USDT
-# Número máximo de ordens compradas ao mesmo tempo:
 max_ordens = 2
 #
 touring(max_ordens=max_ordens, ticker=ticker)
