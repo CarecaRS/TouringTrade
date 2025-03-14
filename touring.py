@@ -1,6 +1,7 @@
 #############################################################
 #                                                           #
-#      TouringTrade by CarecaRS (github.com/CarecaRS)       #
+#             TouringTrade by Thiago Werminghoff            #
+#                   (github.com/CarecaRS)                   #
 #                                                           #
 #  -------------------------------------------------------  #
 #                                                           #
@@ -59,173 +60,171 @@ from keys import api_secret_trade, api_key_trade, email_sender, email_personal, 
 def email_compra(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, preco_ticker=None, patrimonio=None, qtde=None, fatia=None):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    print('Preparando valores para envio da mensagem de compra...')
-    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
-    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
+    print('Preparing values to send the buy order message...')
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Fetch USDT balance
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Fetch BTC balance
     preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
     patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
-    subject = f'Touring: compra de {ticker[:3]}s realizada!'
-    body = (f'Acabei de realizar uma ordem de compra!\n\n\
-            Ativo negociado: {ticker[:3]}\n\
-            Valor atual do ativo: US${round(preco_ticker, 2)}\n\
-            Valor que eu investi: US${round(fatia, 2)}\n\
-            Quantidade comprada: {'{:.5f}'.format(qtde)} {ticker[:3]}\n\n\
-            Total investido atualmente: US${round((saldo_ticker*preco_ticker), 2)}\n\
-            Quantidade total de {ticker[:3]} em carteira: {'{:.5f}'.format(saldo_ticker)} {ticker[:3]}s\n\
-            Patrimonio atual (saldo+invest) calculado: US${round(patrimonio, 2)}\n\n\
-            Pode ficar tranquilo que eu coordeno outras entradas e as saidas conforme meus parametros ;)\n\
-            Ate mais!')
+    subject = f'Touring: buy order of {ticker[:3]}s completed!'
+    body = (f"I've just completed a buy order!\n\n\
+            Asset traded: {ticker[:3]}\n\
+            Current asset price: US${round(preco_ticker, 2)}\n\
+            Ammount that I invested: US${round(fatia, 2)}\n\
+            Quantity bought: {'{:.5f}'.format(qtde)} {ticker[:3]}\n\n\
+            Total invested at the moment: US${round((saldo_ticker*preco_ticker), 2)}\n\
+            Total {ticker[:3]} quantity in our wallet: {'{:.5f}'.format(saldo_ticker)} {ticker[:3]}s\n\
+            Total equity estimated (balance + crypto): US${round(patrimonio, 2)}\n\n\
+            You can rest assured that I'll coordinate other buy/sell orders according to my parameters ;)\n\
+            See ya!")
     message = (f'Subject: {subject}\n\n{body}')
-    print('Enviando e-mail de compra agora.')
+    print('Sending buy order e-mail now.')
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.starttls()
         smtp.login(email_personal, email_pwd)
         smtp.sendmail(email_sender, email_personal, message)
-    print('E-mail enviado com sucesso.')
+    print('E-mail successfully sent.')
 
 
 # Sell orders
 def email_venda(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, preco_ticker=None, patrimonio=None, qtde=None, fatia=None):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    print('Preparando valores para envio da mensagem de venda...')
-    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
-    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
+    print('Preparing values to send the sell order message...')
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Fetch USDT balance
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Fetch BTC balance
     preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
     patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
-    subject = f'Touring: venda de {ticker[:3]}s realizada!'
-    body = (f'Acabei de realizar uma ordem de venda!\n\n\
-            Ativo negociado: {ticker[:3]}\n\
-            Valor atual do ativo: US${round(preco_ticker, 2)}\n\
-            Valor de venda: US${round(fatia, 2)}\n\
-            Quantidade vendida: {'{:.5f}'.format(qtde)} {ticker[:3]}\n\n\
-            Total que permanece investido: US${round(saldo_ticker * preco_ticker, 2)}\n\
-            Quantidade total de {ticker[:3]} em carteira: {'{:.5f}'.format(saldo_ticker)} {ticker[:3]}s\n\
-            Patrimonio atual (saldo+invest) calculado: US${round(patrimonio, 2)}\n\n\
-            Pode ficar tranquilo que eu coordeno outras saidas e as entradas conforme meus parametros ;)\n\
-            Ate mais!')
+    subject = f'Touring: sell order of {ticker[:3]}s completed!'
+    body = (f"I've just completed a sell order!\n\n\
+            Asset traded: {ticker[:3]}\n\
+            Current asset price: US${round(preco_ticker, 2)}\n\
+            Selling price: US${round(fatia, 2)}\n\
+            Ammount sold: {'{:.5f}'.format(qtde)} {ticker[:3]}\n\n\
+            Total that remains invested: US${round(saldo_ticker * preco_ticker, 2)}\n\
+            Total quantity of {ticker[:3]} in our wallet: {'{:.5f}'.format(saldo_ticker)} {ticker[:3]}s\n\
+            Total equity estimated (balance + crypto): US${round(patrimonio, 2)}\n\n\
+            You can rest assured that I'll coordinate other buy/sell orders according to my parameters ;)\n\
+            See ya!")
     message = (f'Subject: {subject}\n\n{body}')
-    print('Enviando e-mail de venda agora.')
+    print('Sending sell order e-mail now.')
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.starttls()
         smtp.login(email_personal, email_pwd)
         smtp.sendmail(email_sender, email_personal, message)
-    print('E-mail enviado com sucesso.')
+    print('E-mail successfully sent.')
 
 
 # Sellout orders
 def email_venda_zerado(saldos_iniciais=None, saldo_usd=None, saldo_ticker=None, preco_ticker=None, patrimonio=None, qtde=None, fatia=None):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    print('Preparando valores para envio da mensagem de venda...')
-    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
-    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
+    print('Preparing values to send the sellout order message...')
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Fetch USDT balance
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Fetch BTC balance
     preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
     patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
-    subject = f'Touring: posicoes de {ticker[:3]}s zeradas!'
-    body = (f'Acabei de realizar a ultima ordem de venda do saldo disponivel de {ticker[:3]}s!\n\n\
-            Ativo negociado: {ticker[:3]}\n\
-            Valor atual do ativo: US${round(preco_ticker, 2)}\n\
-            Valor de venda: US${round(fatia, 2)}\n\
-            Quantidade vendida: {'{:.5f}'.format(qtde)} {ticker[:3]}\n\n\
-            Total que permanece investido: US${round(saldo_ticker * preco_ticker, 2)}\n\
-            Quantidade total de {ticker[:3]} em carteira: {'{:.5f}'.format(saldo_ticker)} {ticker[:3]}s\n\
-            Patrimonio atual (saldo+invest) calculado: US${round(patrimonio, 2)}\n\n\
-            Assim que forem realizadas outras compras eu volto a coordenar as saidas seguintes, pode ficar sossegado ;)\n\
-            Ate mais!')
+    subject = f'Touring: {ticker[:3]} positions cleared!'
+    body = (f"I just placed the last sell order of the available {ticker[:3]} balance!\n\n\
+            Asset traded: {ticker[:3]}\n\
+            Current asset price: US${round(preco_ticker, 2)}\n\
+            Selling price: US${round(fatia, 2)}\n\
+            Ammount sold: {'{:.5f}'.format(qtde)} {ticker[:3]}\n\n\
+            Total equity estimated (balance + crypto): US${round(patrimonio, 2)}\n\n\
+            As soon as other purchases are made I'll coordinate the following sell orders, you can rest assured ;)\n\
+            See ya!")
     message = (f'Subject: {subject}\n\n{body}')
-    print('Enviando e-mail de venda agora.')
+    print('Sending sell order e-mail now.')
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.starttls()
         smtp.login(email_personal, email_pwd)
         smtp.sendmail(email_sender, email_personal, message)
-    print('E-mail enviado com sucesso.')
+    print('E-mail successfully sent.')
 
 
 # Week report
 def email_relatorio(temp=None):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    subject = 'Oi chefe, aqui eh o Touring! Estou trazendo teu relatorio semanal :D'
-    print('Preparando valores para envio da mensagem...')
+    subject = "Hey boss, here is Touring! I'm bringing your weekly report :D"
+    print('Preparing values to send the message...')
     semana = temp['Semana'].max()
     mask = temp['Semana'] == semana
-    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Resgata valor de unidades USDT
-    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Resgata valor de unidades BTC
+    saldo_usd = float(cliente.get_asset_balance(asset='USDT')['free'])  # Fetch USDT quantity
+    saldo_ticker = float(cliente.get_asset_balance(asset=ticker[:3])['free'])  # Fetch crypto quantity
     preco_ticker = float(cliente.get_avg_price(symbol=ticker)['price'])
     patrimonio = saldo_usd + (saldo_ticker * preco_ticker)
     variacoes = temp[mask]
     var_estrategia = (patrimonio/variacoes.reset_index()['PatrimonioTotal'][0])-1
     var_ativo = (preco_ticker/variacoes.reset_index()['ValorUnitario'][0])-1
-    body = (f'Aqui eu trago seu resumo semanal de desempenho!\n\n\
-            Patrimonio total hoje: US${round(patrimonio, 2)}\n\n\
-            Ativo negociado: {ticker[:3]}\n\
-            Rendimento da estrategia: {round(var_estrategia*100, 4)}%\n\
-            Oscilacao do ativo: {round(var_ativo*100, 4)}%\n\
-            Quantidade de trades na semana: {(temp.loc[mask]['CV'] == 'compra').sum()} COMPRAS e {(temp.loc[mask]['CV'] == 'venda').sum()} VENDAS.\n\n\
-            Por hoje eh soh chefe! Em breve eu retorno com mais um relatorio :D')
+    body = (f"Here I bring your weekly performance summary!\n\n\
+            Total equity now: US${round(patrimonio, 2)}\n\n\
+            Asset in focus: {ticker[:3]}\n\
+            Strategy performance: {round(var_estrategia*100, 4)}%\n\
+            Asset performance: {round(var_ativo*100, 4)}%\n\
+            Trades done through the last week: {(temp.loc[mask]['CV'] == 'compra').sum()} BUY ORDERS and {(temp.loc[mask]['CV'] == 'venda').sum()} SELL ORDERS.\n\n\
+            That's all for today boss! I'll be back soon with another report :D")
     message = (f'Subject: {subject}\n\n{body}')
-    print('Enviando e-mail agora.')
+    print('Sending e-mail now.')
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.starttls()
         smtp.login(email_personal, email_pwd)
         smtp.sendmail(email_sender, email_personal, message)
-    print('E-mail enviado com sucesso.')
+    print('E-mail successfully sent.')
 
 
 # Error in Binance systems
 def carteira_off():
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    subject = f'Touring: carteira Binance indisponivel!'
-    body = (f'Por algum motivo nao consegui acessar a carteira da Binance.\n\n\
-            Sera que a internet caiu e trocou o IP?\n\
-            Favor verificar, ate isso ser solucionado estou sem poder negociar =/\n\n\
-            No aguardo.')
+    subject = f'Touring: Binance wallet unavailable!'
+    body = (f"For some reason I couldn't access our Binance wallet.\n\n\
+            Maybe the network gone offline and our IP has changed?\n\
+            Please verify, until this is solved I'm unable to trade =/\n\n\
+            I'll wait.")
     message = (f'Subject: {subject}\n\n{body}')
-    print('Enviando e-mail sobre a impossibilidade...')
+    print('E-mailing about impossibility...')
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.starttls()
         smtp.login(email_personal, email_pwd)
         smtp.sendmail(email_sender, email_personal, message)
-    print('E-mail enviado com sucesso.')
+    print('E-mail successfully sent.')
 
 
 # Buy trade error
 def erro_compra(qtde=None, ticker='BTCUSDT'):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    subject = f'Touring: erro no processamento de compra!'
-    body = (f'Por algum motivo nao consegui comprar {qtde} {ticker[:3]}s.\n\n\
-            Precisa ver o quanto antes, pois podemos perder a tendencia.\n\n\
-            *ACHO* que eu sigo de olho nos movimentos, se for so esse e-mail recebido e eu consegui comprar depois, menos mal.\n\
-            Mas vale a pena dar uma olhada no meu log e tambem no ledger.\n\n\
-            No aguardo.')
+    subject = f'Touring: buy order error!'
+    body = (f"For some reason I couldn't buy {qtde} {ticker[:3]}s.\n\n\
+            You need to check this as soon as possible, we could lose the trend.\n\n\
+            I'm keeping an eye on the trends, if it's just his e-mail received and I was able to process the buy order later, that's not bad.\n\
+            But it's worth taking a look at my log and also at the ledger.\n\n\
+            I'll wait.")
     message = (f'Subject: {subject}\n\n{body}')
-    print('=== Enviando e-mail sobre erro de compra ===')
+    print('=== E-mailing about buy order error ===')
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.starttls()
         smtp.login(email_personal, email_pwd)
         smtp.sendmail(email_sender, email_personal, message)
-    print('E-mail enviado com sucesso.')
+    print('E-mail successfully sent.')
 
 # Sell trade error
 def erro_venda(qtde=None, ticker='BTCUSDT'):
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    subject = f'Touring: erro no processamento de venda!'
-    body = (f'Por algum motivo nao consegui vender {qtde} {ticker[:3]}s.\n\n\
-            Precisa ver o quanto antes, pois podemos perder a tendencia.\n\n\
-            *ACHO* que eu sigo de olho nos movimentos, se for so esse e-mail recebido e eu consegui comprar depois, menos mal.\n\
-            Mas vale a pena dar uma olhada no meu log e tambem no ledger.\n\n\
-            No aguardo.')
+    subject = f'Touring: sell order error!'
+    body = (f"For some reason I couldn't sell {qtde} {ticker[:3]}s.\n\n\
+            You need to check this as soon as possible, we could lose the trend.\n\n\
+            I'm keeping an eye on the trends, if it's just his e-mail received and I was able to process the buy order later, that's not bad.\n\
+            But it's worth taking a look at my log and also at the ledger.\n\n\
+            I'll wait.")
     message = (f'Subject: {subject}\n\n{body}')
-    print('=== Enviando e-mail sobre erro de venda ===')
+    print('=== E-mailing about sell order error ===')
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.starttls()
         smtp.login(email_personal, email_pwd)
         smtp.sendmail(email_sender, email_personal, message)
-    print('E-mail enviado com sucesso.')
+    print('E-mail successfully sent.')
 
 
 ###
@@ -234,26 +233,26 @@ def erro_venda(qtde=None, ticker='BTCUSDT'):
 def carteira_binance():
     cliente = Client(api_key_trade, api_secret_trade)
     if cliente.get_system_status()['msg'] != 'normal':
-        print('\n\n!!!! **** ATENÇÃO **** !!!!\n')
-        print('!!!! BINANCE FORA DO AR !!!!\n')
-        print('Não foi possível obter as informações\n\n')
+        print('\n\n!!!! **** WARNING **** !!!!\n')
+        print('!!!! BINANCE OFFLINE !!!!\n')
+        print('Unable to fetch data\n\n')
     else:
-        print('\nBinance on-line. Solicitando informações.')
-        infos = cliente.get_account()  # carrega as infos do usuário
+        print('\nBinance on-line. Requesting data.')
+        infos = cliente.get_account()  # fetch user infos
         if infos['canTrade'] == False:
-            print('\n\nATENÇÃO! Usuário impedido de negociar, favor verificar status junto à Binance!')
+            print('\n\nWARNING! User unable to trade, please check status with Binance!')
         else:
-            # Recupera as informações da carteira do usuário
+            # Requests user wallet infos
             carteira = pd.DataFrame(infos['balances'])
             numeros = ['free', 'locked']
-            carteira[numeros] = carteira[numeros].astype(float)  # transforma obj em float
+            carteira[numeros] = carteira[numeros].astype(float)  # transforms obj in float
             mask = carteira[numeros][carteira[numeros] > 0] \
-                   .dropna(how='all').index  # filtro dos ativos com saldo
-            print('Realizando limpeza geral da carteira... Tudo pronto.')
-            carteira = carteira.iloc[mask]  # mantem apenas os ativos com saldo
-            black_list = ['NFT', 'SHIB', 'BTTC']  # blacklist de ativos
-            mask = carteira[carteira['asset'].isin(black_list)].index  # registra o índice dos black
-            carteira.drop(mask, axis=0, inplace=True)  # dropa ativos black
+                   .dropna(how='all').index  # assets filter
+            print('Cleaning wallet... All set.')
+            carteira = carteira.iloc[mask]  # keep only assets with positive balance
+            black_list = ['NFT', 'SHIB', 'BTTC']  # asset blacklist
+            mask = carteira[carteira['asset'].isin(black_list)].index  # blacklist index
+            carteira.drop(mask, axis=0, inplace=True)  # dropping blacklist
             return carteira, cliente, infos
 
 
