@@ -1,13 +1,14 @@
 #############################################################
 #                                                           #
-#      TouringTrade by CarecaRS (github.com/CarecaRS)       #
+#             TouringTrade by Thiago Werminghoff            #
+#                   (github.com/CarecaRS)                   #
 #                                                           #
 #  -------------------------------------------------------  #
 #                                                           #
 #   This is the backtest script, it does not trade real mo- #
-# ney.  I use NeoVIM to code,  so I made the code in such a #
+# ney.  I use NeoVIM to code, so I wrote the code in such a #
 # way that it works fine for me.  You are free to change it #
-# for your liking and for whatever works for you.           #
+# to your liking and to whatever works for you.             #
 #                                                           #
 #  -------------------------------------------------------  #
 #                                                           #
