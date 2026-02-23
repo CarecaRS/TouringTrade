@@ -1,3 +1,5 @@
+### <img src="https://github.com/CarecaRS/TCC_USP/blob/master/caution.png" width="48"> This profile is no longer maintained here on GitHub, it has been migrated to [Codeberg.org](https://codeberg.org/twerminghoff/). <img src="https://github.com/CarecaRS/TCC_USP/blob/master/caution.png" width="48">
+
 # TouringTrade
 TouringTrade is a personal assistant (a.k.a. 'bot') that I made from scratch, it buys and sells cryptocurrency using real money (or even other cryptos if you want) through Binance.
 
